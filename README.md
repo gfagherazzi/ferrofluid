@@ -16,6 +16,10 @@ Un solo file, `index.html`, senza dipendenze né build: WebGL2 + GLSL (ray march
 |---|---|---|
 | ![](docs/forma-sigma.png) | ![](docs/forma-stella.png) | ![](docs/forma-svg.png) |
 
+| Resa Piatto | Resa Due toni | Resa Contorno |
+|---|---|---|
+| ![](docs/resa-piatto.png) | ![](docs/resa-due-toni.png) | ![](docs/resa-contorno.png) |
+
 ## Indice
 
 - [Avvio](#avvio)
@@ -26,6 +30,7 @@ Un solo file, `index.html`, senza dipendenze né build: WebGL2 + GLSL (ray march
 - [Vocabolario di stati](#vocabolario-di-stati)
 - [Configurazione: prova, salva, esporta](#configurazione-prova-salva-esporta)
 - [Colore](#colore)
+- [Resa 2D](#resa-2d)
 - [Parametri](#parametri)
 - [Comandi](#comandi)
 - [API JavaScript](#api-javascript)
@@ -70,7 +75,7 @@ Il microfono funziona solo da `https` o da `localhost`. Tre opzioni:
 ```
 
 - `allow="microphone"` è obbligatorio perché l'iframe possa chiedere il permesso del microfono; senza, restano disponibili i file audio e la demo.
-- Parametri dell'URL, combinabili: `?ui=off` nasconde tutti i comandi (resta solo il fluido), `?studio=dark` fondale scuro, `?config=tuo.json` carica una configurazione esportata, `#idle` (o qualsiasi stato o capability) è lo stato iniziale. Esempio: `index.html?ui=off&studio=dark&config=sigma.json#idle`.
+- Parametri dell'URL, combinabili: `?ui=off` nasconde tutti i comandi (resta solo il fluido), `?studio=dark` fondale scuro, `?style=flat` (o `toon`, `outline`) resa 2D, `?config=tuo.json` carica una configurazione esportata, `#idle` (o qualsiasi stato o capability) è lo stato iniziale. Esempio: `index.html?ui=off&studio=dark&config=sigma.json#idle`.
 - Il fluido è centrato nell'area dell'iframe; la dimensione si regola con il parametro `size` della configurazione (o con la rotella, se i comandi sono visibili).
 
 ### 4. Pilotarlo dall'app
@@ -114,7 +119,7 @@ Da sapere:
 - per leggere lo stato corrente dall'esterno: `send({ type: 'sigmabrain:export' })` risponde alla finestra chiamante con `{ type: 'sigmabrain:config', config }`;
 - il permesso del microfono lo chiede il browser quando l'utente preme **Microfono** dentro il fluido (i comandi si mostrano con `{ type: 'sigmabrain:ui', visible: true }`); non si può concedere da fuori.
 
-Tutti i tipi di messaggio: `sigmabrain:state`, `sigmabrain:capability`, `sigmabrain:shape`, `sigmabrain:spell`, `sigmabrain:sequence`, `sigmabrain:stop`, `sigmabrain:color`, `sigmabrain:colorMode`, `sigmabrain:define`, `sigmabrain:config`, `sigmabrain:export`, `sigmabrain:ui`. I campi di ciascuno sono in [API JavaScript](#api-javascript).
+Tutti i tipi di messaggio: `sigmabrain:state`, `sigmabrain:capability`, `sigmabrain:shape`, `sigmabrain:spell`, `sigmabrain:sequence`, `sigmabrain:stop`, `sigmabrain:color`, `sigmabrain:colorMode`, `sigmabrain:define`, `sigmabrain:config`, `sigmabrain:export`, `sigmabrain:ui`, `sigmabrain:style`. I campi di ciascuno sono in [API JavaScript](#api-javascript).
 
 ### 5. Personalizzarlo
 
@@ -220,6 +225,7 @@ Definizione di uno stato (tutte le chiavi sono facoltative):
 | `size`, `spikes`, `bc`, `density`, `width`, `morph`, `visc`, `spin` | parametri della massa e delle punte |
 | `thickness`, `rounding`, `engrave`, `react` | parametri della forma esterna (spessore, arrotondamento, incisione, reattività all'audio) |
 | `studio` | `light` o `dark` |
+| `style`, `outline` | resa `3d` / `flat` / `toon` / `outline` e spessore del contorno in px (vedi [Resa 2D](#resa-2d)) |
 | `label` | testo mostrato accanto al pallino colorato in alto a sinistra |
 
 Se `spell`, `sequence`, `shape` e `capability` sono presenti insieme, vale il primo in quest'ordine. I parametri di uno stato sono sovrapposizioni ai valori base: lo stato successivo (o `state(null)`) li annulla, e il salvataggio nel browser conserva sempre i valori base.
@@ -261,6 +267,7 @@ index.html?config=sigma-brain.config.json      // all'apertura
 w.postMessage({ type: 'sigmabrain:config', config: json }, '*');
 w.postMessage({ type: 'sigmabrain:export' }, '*');   // risponde con { type: 'sigmabrain:config', config }
 w.postMessage({ type: 'sigmabrain:ui', visible: false }, '*');  // nasconde o mostra i comandi
+w.postMessage({ type: 'sigmabrain:style', style: 'flat' }, '*');   // resa 3d | flat | toon | outline
 ```
 
 Le forme da file immagine finiscono nell'export come data URI (fino a 400 KB); SVG e path come testo.
@@ -278,6 +285,29 @@ Sorgente della tinta, nel pannello **Parametri → Colore**:
 
 **Intensità** regola quanto la tinta entra nel corpo e nei riflessi. **Iridescenza** aggiunge una pellicola sottile che cambia colore con l'angolo di vista; funziona anche in modalità Nero. Il pallino accanto al nome dello stato, in alto a sinistra, mostra il colore corrente.
 
+## Resa 2D
+
+La stessa forma e la stessa animazione si possono dipingere in modo piatto, per interfacce dove un oggetto lucido in 3D non c'entra (un avatar in una chat, un'icona grande, una grafica da stampa). Si sceglie in **Parametri → Studio → Resa**, con `?style=` nell'URL, con `sigmaBrain.setStyle()` o con la chiave `style` di uno stato.
+
+| Resa | id | Aspetto |
+|---|---|---|
+| 3D | `3d` | il ferrofluido lucido con riflessi (default) |
+| Piatto | `flat` | riempimento uniforme con bordo anti-aliasato: nero su fondale chiaro, bianco su scuro, oppure la tinta scelta |
+| Due toni | `toon` | come Piatto più un lato luce con transizione netta, stile illustrazione; l'iridescenza diventa una tinta che segue la normale |
+| Contorno | `outline` | solo il tratto attorno alla silhouette |
+
+**Contorno** (0–12 px) aggiunge un tratto anche a Piatto e Due toni; nella resa Contorno vale almeno 2 px. Il tratto è disegnato all'esterno della silhouette. Colore, Capability, Forma esterna, sequenze, punte e tutti gli altri parametri funzionano uguali: una forma esterna in resa Piatto è di fatto un'icona animata dal suono.
+
+```js
+sigmaBrain.setStyle('flat');       // '3d' | 'flat' | 'toon' | 'outline'
+sigmaBrain.style;                  // resa corrente
+sigmaBrain.define('badge', { capability: 'brain', style: 'toon', outline: 3, color: '#2f7cff' });
+```
+
+```
+index.html?style=flat&ui=off#idle
+```
+
 ## Parametri
 
 Pannello **Parametri** (tasto `P`). Tutte le impostazioni restano salvate nel browser; **Ripristina valori** riporta ai default.
@@ -294,7 +324,7 @@ Sopra una soglia critica Bc la superficie di un ferrofluido reale si rompe in pu
 
 **Colore**: vedi sopra.
 
-**Studio**: fondale chiaro o scuro; qualità di rendering (*Auto* adatta la risoluzione per tenere 60 fps, *Alta* usa fino a 2× il device pixel ratio).
+**Studio** - resa (3D, Piatto, Due toni, Contorno: vedi [Resa 2D](#resa-2d)) e contorno in pixel per le rese 2D; fondale chiaro o scuro; qualità di rendering (in *Auto* la risoluzione si adatta per tenere 60 fps).
 
 ## Comandi
 
@@ -339,6 +369,7 @@ La pagina espone `window.sigmaBrain` (alias `window.ferrofluido`, mantenuto per 
 | `removeState(name)`, `saveState(name)` | `→ boolean` | elimina uno stato; salva la situazione corrente come stato |
 | `states`, `currentState` | (sola lettura) | copia del vocabolario; nome dello stato attivo o `null` |
 | `ui(visible)` | | mostra o nasconde i comandi (come il tasto `H`); `?ui=off` nell'URL li nasconde all'apertura |
+| `setStyle(id)`, `style`, `styles` | | resa `3d`, `flat`, `toon`, `outline` (vedi [Resa 2D](#resa-2d)); `?style=` nell'URL |
 | `exportConfig()`, `importConfig(obj \| url)` | | esporta e importa la configurazione completa (vedi [Configurazione](#configurazione-prova-salva-esporta)) |
 
 Esempi:
