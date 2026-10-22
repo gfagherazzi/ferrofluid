@@ -90,7 +90,7 @@ Cosa funziona meglio: glifi e icone con una silhouette riconoscibile (★ ⚡ �
 
 Come funziona: la silhouette viene disegnata su un canvas, ritagliata e centrata; a risoluzione 768×768 si calcola la trasformata di distanza esatta (Felzenszwalb–Huttenlocher) dentro e fuori, corretta sul bordo con la copertura anti-aliasata del pixel; il campo viene ridotto a 384×384 con media e una sfocatura leggera (che toglie la scalettatura dei texel senza spostare il bordo e mantiene il campo 1-Lipschitz) e caricato come texture half-float a due canali: distanza con segno e scurezza relativa alla luminanza media della silhouette. Lo shader legge il campo 2D, lo estrude in profondità con bordi arrotondati, arretra la faccia frontale dove l'immagine è scura e applica le stesse onde e increspature delle altre forme. Due texture si alternano, quindi anche il passaggio da una forma esterna all'altra è una transizione fluida.
 
-Le sorgenti testuali (emoji, path, SVG) restano salvate nel browser e vengono ricaricate all'apertura; le immagini da file no.
+Le sorgenti testuali (emoji, path, SVG) restano salvate nel browser e vengono ricaricate all'apertura; le immagini da file vengono conservate come data URI fino a 400 KB, oltre no.
 
 ### Sequenze e parole
 
