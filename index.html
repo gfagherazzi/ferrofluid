@@ -1068,12 +1068,13 @@ void main() {
   };
   $('btn-params').onclick = () => toggleParams();
 
-  const toggleUI = () => {
-    const off = !document.body.classList.contains('ui-off');
+  const setUI = (visible) => {
+    const off = !visible;
     document.body.classList.toggle('ui-off', off);
     $('btn-hide').setAttribute('aria-pressed', off);
     $('btn-hide').setAttribute('aria-label', off ? 'Mostra comandi' : 'Nascondi comandi');
   };
+  const toggleUI = () => setUI(document.body.classList.contains('ui-off'));
   $('btn-hide').onclick = toggleUI;
   const toggleFull = () => {
     try {
@@ -1548,6 +1549,7 @@ void main() {
     if (d.type === 'sigmabrain:state') applyState(d.name == null ? null : String(d.name));
     if (d.type === 'sigmabrain:define') { if (d.states) defineStates(d.states); else if (d.name) defineState(d.name, d.definition); }
     if (d.type === 'sigmabrain:config' && d.config != null) importConfig(d.config).catch(() => {});
+    if (d.type === 'sigmabrain:ui') setUI(d.visible !== false);
     if (d.type === 'sigmabrain:export' && e.source && e.source.postMessage) e.source.postMessage({ type: 'sigmabrain:config', config: exportConfig() }, '*');
   });
   window.sigmaBrain = {
@@ -1577,6 +1579,7 @@ void main() {
     removeState: (name) => removeState(String(name)),
     saveState: (name) => saveState(String(name || '')),
     exportConfig: () => exportConfig(),
+    ui: (visible) => setUI(visible !== false),
     importConfig: (cfg) => importConfig(cfg),
   };
   window.ferrofluido = window.sigmaBrain; // alias storico
@@ -2188,7 +2191,11 @@ void main() {
   // forma iniziale: quella salvata (o la Σ di Sigma); attiva subito solo se l'URL lo chiede
   // Poi index.html?config=percorso.json carica una configurazione esportata e #nome apre in uno stato.
   // In sequenza, non in parallelo: ogni passo chiama setShape e l'ultimo a finire vincerebbe.
-  const cfgUrl = new URLSearchParams(location.search).get('config');
+  // parametri dell'URL per l'incorporamento: ?ui=off nasconde i comandi, ?studio=dark|light il fondale
+  const query = new URLSearchParams(location.search);
+  if (query.get('ui') === 'off') setUI(false);
+  if (query.get('studio') === 'dark' || query.get('studio') === 'light') { setBase('studio', query.get('studio')); syncControls(); }
+  const cfgUrl = query.get('config');
   setShape(S.shapeSrc || 'Σ', { activate: hashCap === 'custom', instant: true, silent: true })
     .then(() => (cfgUrl ? importConfig(cfgUrl).catch((e) => setStatus((e && e.message) || 'Configurazione non caricata.', true, 8000)) : null))
     .then(() => { if (hasState(hashCap)) applyState(hashCap); });

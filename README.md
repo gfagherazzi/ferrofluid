@@ -19,6 +19,7 @@ Un solo file, `index.html`, senza dipendenze né build: WebGL2 + GLSL (ray march
 ## Indice
 
 - [Avvio](#avvio)
+- [Guida all'integrazione](#guida-allintegrazione)
 - [Sorgenti audio](#sorgenti-audio)
 - [Capability](#capability)
 - [Forma esterna](#forma-esterna)
@@ -28,7 +29,6 @@ Un solo file, `index.html`, senza dipendenze né build: WebGL2 + GLSL (ray march
 - [Parametri](#parametri)
 - [Comandi](#comandi)
 - [API JavaScript](#api-javascript)
-- [Integrazione in un'app](#integrazione-in-unapp)
 - [Come funziona](#come-funziona)
 - [Prestazioni e compatibilità](#prestazioni-e-compatibilità)
 - [Struttura del progetto](#struttura-del-progetto)
@@ -44,6 +44,97 @@ python3 -m http.server 8000      # oppure: npx serve .
 ```
 
 e apri `http://localhost:8000`. Online va pubblicata su `https` (GitHub Pages, Netlify, Vercel: è un file statico).
+
+## Guida all'integrazione
+
+Per chi riceve il progetto e vuole usarlo nella propria app, in cinque passi. Il resto del README è il riferimento completo.
+
+### 1. Cosa serve
+
+- `index.html` è tutto il programma: nessuna dipendenza, nessuna build, nessun server applicativo. `docs/` contiene solo gli screenshot di questo README, `examples/` una pagina ospite di esempio.
+- Un browser con WebGL2 (Chrome, Edge, Firefox, Safari 15+). Basta una GPU modesta: su macchine lente la qualità *Auto* abbassa la risoluzione da sola.
+
+### 2. Pubblicarlo
+
+Il microfono funziona solo da `https` o da `localhost`. Tre opzioni:
+
+- **GitHub Pages**: nella repo, *Settings → Pages → Branch `main`, cartella `/ (root)`*. La pagina sarà `https://<utente>.github.io/<repo>/`.
+- **Hosting statico** (Netlify, Vercel, S3, nginx): basta copiare i file.
+- **In locale**: `python3 -m http.server 8000` nella cartella, poi `http://localhost:8000`.
+
+### 3. Incorporarlo nella propria pagina
+
+```html
+<iframe id="brain" src="https://…/index.html?ui=off#idle" allow="microphone"
+        style="width:100%;height:480px;border:0;background:#d7d7d5"></iframe>
+```
+
+- `allow="microphone"` è obbligatorio perché l'iframe possa chiedere il permesso del microfono; senza, restano disponibili i file audio e la demo.
+- Parametri dell'URL, combinabili: `?ui=off` nasconde tutti i comandi (resta solo il fluido), `?studio=dark` fondale scuro, `?config=tuo.json` carica una configurazione esportata, `#idle` (o qualsiasi stato o capability) è lo stato iniziale. Esempio: `index.html?ui=off&studio=dark&config=sigma.json#idle`.
+- Il fluido è centrato nell'area dell'iframe; la dimensione si regola con il parametro `size` della configurazione (o con la rotella, se i comandi sono visibili).
+
+### 4. Pilotarlo dall'app
+
+Tre canali equivalenti:
+
+| Canale | Quando | Esempio |
+|---|---|---|
+| `postMessage` | il fluido è in un iframe, anche su un altro dominio | `frame.contentWindow.postMessage({ type: 'sigmabrain:state', name: 'searching' }, '*')` |
+| `window.sigmaBrain` | lo script gira dentro `index.html` (per esempio aggiunto in fondo al file) | `sigmaBrain.state('searching')` |
+| URL | stato iniziale, senza script | `index.html#searching`, `index.html?config=sigma.json` |
+
+Nella maggior parte dei casi basta un solo comando, lo **stato**: `idle`, `thinking`, `answering`, `searching`, `reading`, `looking`, `coding`, `greeting`, `error`, `done` (vedi [Vocabolario di stati](#vocabolario-di-stati)). Esempio completo:
+
+```html
+<iframe id="brain" src="sigma-brain/index.html?ui=off#idle" allow="microphone"
+        style="width:100%;height:480px;border:0"></iframe>
+<script>
+  const frame = document.getElementById('brain');
+  const ready = new Promise((ok) => frame.addEventListener('load', ok, { once: true }));
+  async function send(msg) { await ready; frame.contentWindow.postMessage(msg, '*'); }
+
+  // eventi della tua app → stati del fluido
+  const MAP = { idle: 'idle', thinking: 'thinking', reply: 'answering', web: 'searching',
+                files: 'reading', vision: 'looking', code: 'coding', error: 'error', done: 'done' };
+  function brain(event) { return send({ type: 'sigmabrain:state', name: MAP[event] || 'idle' }); }
+
+  // oppure, senza stati: una forma, un colore, una parola
+  send({ type: 'sigmabrain:shape', source: '🚀' });
+  send({ type: 'sigmabrain:color', color: '#ff0066' });
+  send({ type: 'sigmabrain:spell', word: 'CIAO' });
+</script>
+```
+
+`examples/integrazione.html` è questa pagina già pronta, con i pulsanti per tutti gli stati, una conversazione simulata e il registro dei messaggi: aprila da un server locale (`http://localhost:8000/examples/integrazione.html`).
+
+Da sapere:
+
+- i messaggi inviati prima che l'iframe abbia finito di caricare vanno persi: aspetta l'evento `load` come nell'esempio;
+- `'*'` come origine va bene per iniziare; in produzione indica l'origine della pagina del fluido;
+- per leggere lo stato corrente dall'esterno: `send({ type: 'sigmabrain:export' })` risponde alla finestra chiamante con `{ type: 'sigmabrain:config', config }`;
+- il permesso del microfono lo chiede il browser quando l'utente preme **Microfono** dentro il fluido (i comandi si mostrano con `{ type: 'sigmabrain:ui', visible: true }`); non si può concedere da fuori.
+
+Tutti i tipi di messaggio: `sigmabrain:state`, `sigmabrain:capability`, `sigmabrain:shape`, `sigmabrain:spell`, `sigmabrain:sequence`, `sigmabrain:stop`, `sigmabrain:color`, `sigmabrain:colorMode`, `sigmabrain:define`, `sigmabrain:config`, `sigmabrain:export`, `sigmabrain:ui`. I campi di ciascuno sono in [API JavaScript](#api-javascript).
+
+### 5. Personalizzarlo
+
+- **Stati**: il blocco `<script type="application/json" id="states-json">` in `index.html`; ogni stato unisce forma o sequenza, colore, parametri ed etichetta. Oppure dall'app, con `{ type: 'sigmabrain:define', states: { … } }`.
+- **Senza toccare il codice**: apri la pagina con l'interfaccia, regola i parametri, *Salva stato*, *Esporta JSON*, poi `?config=tuo.json` (vedi [Configurazione](#configurazione-prova-salva-esporta)).
+- **Forme**: qualsiasi emoji, testo, path, SVG o immagine (vedi [Forma esterna](#forma-esterna)). Le icone SVG della tua app sono il materiale migliore.
+- **Colori dell'interfaccia e fondale**: token CSS in cima a `index.html` (`:root` e `body[data-studio="dark"]`); il colore di sfondo del canvas è `--stage`.
+- **Nuove forme matematiche**: una funzione SDF nello shader e una riga in `CAPS` (vedi [Come funziona](#come-funziona)).
+
+### Se qualcosa non va
+
+| Sintomo | Causa e rimedio |
+|---|---|
+| Il microfono non si attiva | serve `https` o `localhost`; nell'iframe serve `allow="microphone"`; dentro un'anteprima o un sandbox il microfono è bloccato: apri `index.html` direttamente |
+| «Il browser blocca la lettura di questa immagine (CORS)» | l'immagine viene da un altro dominio senza intestazioni CORS: scaricala e caricala come file, oppure usa un data URI |
+| Un'emoji è un disco irriconoscibile | la sua silhouette è un disco: alza **Incisione**, oppure scegli un glifo con sagoma distintiva (★ ⚡ 🚀 🔍 📄) |
+| Va a scatti | qualità su *Auto* oppure *Media*/*Bassa*; le forme esterne costano un po' più delle altre |
+| «WEBGL2 NON DISPONIBILE» | browser o GPU senza WebGL2: aggiorna il browser o abilita l'accelerazione hardware |
+| I `postMessage` non fanno nulla | inviati prima del `load` dell'iframe, oppure `type` scritto male (vedi l'elenco sopra) |
+| Le impostazioni cambiano da sole | il browser ricorda le ultime impostazioni (`localStorage`): *Ripristina valori* nel pannello, oppure passa sempre una `?config=` |
 
 ## Sorgenti audio
 
@@ -169,6 +260,7 @@ index.html?config=sigma-brain.config.json      // all'apertura
 // da una pagina che la incorpora
 w.postMessage({ type: 'sigmabrain:config', config: json }, '*');
 w.postMessage({ type: 'sigmabrain:export' }, '*');   // risponde con { type: 'sigmabrain:config', config }
+w.postMessage({ type: 'sigmabrain:ui', visible: false }, '*');  // nasconde o mostra i comandi
 ```
 
 Le forme da file immagine finiscono nell'export come data URI (fino a 400 KB); SVG e path come testo.
@@ -246,6 +338,7 @@ La pagina espone `window.sigmaBrain` (alias `window.ferrofluido`, mantenuto per 
 | `define(name, def)`, `defineStates(obj)`, `loadStates(url \| obj)` | | definisce stati (vedi [Vocabolario di stati](#vocabolario-di-stati)) |
 | `removeState(name)`, `saveState(name)` | `→ boolean` | elimina uno stato; salva la situazione corrente come stato |
 | `states`, `currentState` | (sola lettura) | copia del vocabolario; nome dello stato attivo o `null` |
+| `ui(visible)` | | mostra o nasconde i comandi (come il tasto `H`); `?ui=off` nell'URL li nasconde all'apertura |
 | `exportConfig()`, `importConfig(obj \| url)` | | esporta e importa la configurazione completa (vedi [Configurazione](#configurazione-prova-salva-esporta)) |
 
 Esempi:
@@ -292,28 +385,6 @@ w.postMessage({ type: 'sigmabrain:define', states: { ... } }, '*');
 
 Per `postMessage` la sorgente deve essere serializzabile: testo, path, markup SVG, URL o data URI; un `File` o `Blob` va passato direttamente a `setShape` dalla stessa pagina.
 
-## Integrazione in un'app
-
-Esempio minimo: il fluido in un `<iframe>` e una funzione che lo aggiorna quando l'assistente cambia attività.
-
-```html
-<iframe id="brain" src="sigma-brain/index.html#brain"
-        allow="microphone" style="width:100%;height:480px;border:0"></iframe>
-<script>
-  const brain = document.getElementById('brain').contentWindow;
-  const STATE = { thinking: 'brain', answering: 'chat', searching: 'web',
-                  reading: 'docs', looking: 'images', coding: 'tools' };
-  function onAssistantActivity(activity) {
-    brain.postMessage({ type: 'sigmabrain:capability', name: STATE[activity] || 'brain' }, '*');
-  }
-</script>
-```
-
-Note:
-- l'attributo `allow="microphone"` serve perché l'iframe possa chiedere il permesso; senza, resta disponibile l'audio da file o la demo;
-- per nascondere l'interfaccia e lasciare solo il fluido, premi `H` oppure aggiungi la classe `ui-off` a `<body>` dalla pagina stessa;
-- il fondale segue il parametro **Studio** (chiaro/scuro); i colori dell'interfaccia sono token CSS in cima al file (`:root` e `body[data-studio="dark"]`).
-
 ## Come funziona
 
 - **Forma**: tutto è un campo di distanza con segno (SDF) valutato per pixel in un fragment shader (ray marching, 160 passi max, bounding sphere per saltare il vuoto). Lo stato Cervello è un nucleo più sei lobi che orbitano guidati dalle bande di frequenza, uniti con *smooth minimum*, due sfere sottratte che creano le pieghe, un rumore lento e increspature veloci (acuti) sulla superficie.
@@ -340,5 +411,7 @@ Per aggiungere una forma: una funzione `sdNome(vec3 p)` nello shader, un caso in
 sigma-brain/
 ├── index.html   # tutto: stili, shader GLSL, logica audio e interfaccia
 ├── README.md
-└── docs/        # screenshot usati in questo README
+├── docs/        # screenshot usati in questo README
+└── examples/
+    └── integrazione.html   # pagina ospite di esempio: iframe + postMessage
 ```
