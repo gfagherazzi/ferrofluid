@@ -292,7 +292,20 @@ input[type="range"]::-moz-range-thumb {
   background: var(--ink); border: 2px solid var(--glass-solid);
 }
 .row-inline { grid-auto-flow: column; justify-content: space-between; align-items: center; }
-.row-inline label { font-size: 13px; font-weight: 500; }
+.row-inline label, .row-label { font-size: 13px; font-weight: 500; }
+.row-inline.fields { display: grid; grid-template-columns: 1fr auto; justify-content: stretch; gap: 8px; }
+.text-input {
+  width: 100%; min-width: 0; box-sizing: border-box;
+  padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--well); font-size: 13px;
+}
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chips button {
+  border: 1px solid var(--line); background: transparent; border-radius: 999px;
+  padding: 3px 11px; font-size: 14px; line-height: 1.4;
+}
+.chips button:hover { background: var(--well); }
+.group > .help { margin: 0; font-size: 11.5px; color: var(--ink-3); line-height: 1.4; }
 input[type="color"] {
   -webkit-appearance: none; appearance: none;
   width: 48px; height: 30px; padding: 2px;
@@ -367,7 +380,7 @@ input[type="color"]::-moz-color-swatch { border: 0; border-radius: 5px; }
 
 <header class="brand chrome">
   <div class="wordmark">SIGMA BRAIN</div>
-  <div class="tagline" id="tagline"><span>Trascina per ruotare, rotella per lo zoom</span><span id="tagline-keys"><kbd>1</kbd>–<kbd>6</kbd> capability · <kbd>M</kbd> microfono · <kbd>H</kbd> comandi</span></div>
+  <div class="tagline" id="tagline"><span>Trascina per ruotare, rotella per lo zoom</span><span id="tagline-keys"><kbd>1</kbd>–<kbd>7</kbd> capability · <kbd>M</kbd> microfono · <kbd>H</kbd> comandi</span></div>
   <div class="cap-now" id="cap-now">Cervello · stato di riposo</div>
 </header>
 
@@ -391,6 +404,7 @@ input[type="color"]::-moz-color-swatch { border: 0; border-radius: 5px; }
     <button type="button" id="src-demo" role="radio" aria-checked="true">Demo</button>
   </div>
   <input type="file" id="file-input" accept="audio/*" hidden>
+  <input type="file" id="shape-input" accept=".svg,image/*" hidden>
   <button type="button" class="transport" id="btn-play" hidden>Pausa</button>
 
   <div class="meter">
@@ -433,6 +447,29 @@ input[type="color"]::-moz-color-swatch { border: 0; border-radius: 5px; }
       <input type="color" id="p-color" value="#2f7cff">
     </div>
   </div>
+  <div class="group" id="group-shape">
+    <h2>Forma esterna</h2>
+    <div class="row">
+      <div class="row-head"><label for="shape-text">Emoji, testo o path SVG</label></div>
+      <div class="row-inline fields">
+        <input type="text" class="text-input" id="shape-text" placeholder="Σ  ★  🚀  M12 2L2 22h20Z" autocomplete="off" spellcheck="false">
+        <button type="button" class="transport" id="shape-apply">Applica</button>
+      </div>
+      <div class="chips" id="shape-presets" aria-label="Forme pronte">
+        <button type="button" data-src="Σ">Σ</button>
+        <button type="button" data-src="★">★</button>
+        <button type="button" data-src="⚡">⚡</button>
+        <button type="button" data-src="🚀">🚀</button>
+        <button type="button" data-src="🧠">🧠</button>
+        <button type="button" data-src="M12 2.5l2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.4l-5.9 3.1 1.2-6.5L2.5 9.4l6.6-.9Z">path</button>
+      </div>
+    </div>
+    <div class="row row-inline">
+      <span class="row-label">File SVG o immagine</span>
+      <button type="button" class="transport" id="shape-file">Carica…</button>
+    </div>
+    <p class="help">Puoi anche trascinare un SVG o un PNG sulla pagina. Le immagini senza trasparenza vengono lette come silhouette scura su fondo chiaro.</p>
+  </div>
   <div class="group" id="group-look">
     <h2>Studio</h2>
     <div class="row">
@@ -458,7 +495,7 @@ input[type="color"]::-moz-color-swatch { border: 0; border-radius: 5px; }
   </div>
 </aside>
 
-<div class="drop" id="drop" hidden>RILASCIA IL FILE AUDIO</div>
+<div class="drop" id="drop" hidden>RILASCIA UN FILE AUDIO O UNA FORMA (SVG, PNG)</div>
 <div class="fatal" id="fatal" hidden><div><strong>WEBGL2 NON DISPONIBILE</strong><span id="fatal-msg"></span><pre id="fatal-log"></pre></div></div>
 
 <script id="frag" type="x-shader/x-fragment">#version 300 es
@@ -497,6 +534,10 @@ uniform vec3  uTint;
 uniform float uTintAmt;
 uniform float uIrid;
 uniform float uGlow;
+uniform sampler2D uShape0;
+uniform sampler2D uShape1;
+uniform float uShapeThick;
+uniform float uShapeRound;
 
 const float PI  = 3.14159265359;
 const float PHI = 1.61803398875;
@@ -639,12 +680,33 @@ float sdGear(vec3 p) {
   return min(max(w.x, w.y), 0.0) + length(max(w, 0.0)) - 0.04;
 }
 
+// Forma esterna: campo di distanza 2D letto da una texture half-float (silhouette di SVG, emoji o
+// immagine), estruso in profondità con bordi arrotondati. La texture copre il quadrato [-1.1, 1.1]²
+// in unità mondo; fuori dal quadrato si somma la distanza dal quadrato stesso.
+const float SHAPE_HALF = 1.1;
+float customField(sampler2D tex, vec2 xy) {
+  vec2 uv = clamp(xy / (2.0 * SHAPE_HALF) + 0.5, 0.0, 1.0);
+  float d = textureLod(tex, vec2(uv.x, 1.0 - uv.y), 0.0).r;
+  vec2 q = abs(xy) - SHAPE_HALF;
+  return d + length(max(q, 0.0));
+}
+float sdCustom(vec3 p, int slot) {
+  p.yz = rot2(0.12) * p.yz;
+  p.xz = rot2(-0.18 + 0.06 * sin(uTime * 0.6)) * p.xz;
+  float d2 = slot == 0 ? customField(uShape0, p.xy) : customField(uShape1, p.xy);
+  float r = uShapeRound;
+  vec2 w = vec2(d2 + r, abs(p.z) - (uShapeThick - r));
+  return min(max(w.x, w.y), 0.0) + length(max(w, 0.0)) - r;
+}
+
 float shapeD(int id, vec3 p) {
   if (id == 1) return sdHeart(p);
   if (id == 2) return sdPlanet(p);
   if (id == 3) return sdBook(p);
   if (id == 4) return sdPhoto(p);
   if (id == 5) return sdGear(p);
+  if (id == 6) return sdCustom(p, 0);
+  if (id == 7) return sdCustom(p, 1);
   return blob(p);
 }
 
@@ -847,8 +909,9 @@ void main() {
     spikes: 0, bc: 0.35, density: 200, width: 0.9,
     studio: 'light', quality: 'auto', size: 1,
     colorMode: 'capability', color: '#2f7cff', tintAmt: 0.8, irid: 0,
+    shapeThick: 0.22, shapeRound: 0.6, shapeSrc: 'Σ',
   };
-  const CAP_COLORS = { brain: '#8d97a8', chat: '#ff3b5c', web: '#2f7cff', docs: '#f2a93b', images: '#2fd3a6', tools: '#ff7a1a' };
+  const CAP_COLORS = { brain: '#8d97a8', chat: '#ff3b5c', web: '#2f7cff', docs: '#f2a93b', images: '#2fd3a6', tools: '#ff7a1a', custom: '#8b5cf6' };
   const STORE_KEY = 'sigmabrain.v1';
   const S = { ...DEFAULTS };
   try { Object.assign(S, JSON.parse(localStorage.getItem(STORE_KEY) || '{}')); } catch (e) { /* storage non disponibile */ }
@@ -871,6 +934,8 @@ void main() {
     { id: 'width', group: 'group-spikes', label: 'Base delle punte', min: 0.5, max: 1.3, step: 0.01, fmt: pct },
     { id: 'tintAmt', group: 'group-color', label: 'Intensità', min: 0, max: 1, step: 0.01, fmt: pct, help: 'Quanto la tinta entra nel corpo e nei riflessi.' },
     { id: 'irid', group: 'group-color', label: 'Iridescenza', min: 0, max: 1, step: 0.01, fmt: pct, help: 'Pellicola sottile: il colore dei riflessi cambia con l\'angolo di vista.' },
+    { id: 'shapeThick', group: 'group-shape', label: 'Spessore', min: 0.06, max: 0.5, step: 0.01, fmt: (v) => v.toFixed(2) },
+    { id: 'shapeRound', group: 'group-shape', label: 'Arrotondamento', min: 0, max: 1, step: 0.01, fmt: pct, help: 'Quanto i bordi si gonfiano; limitato dallo spessore dei tratti più sottili.' },
   ];
 
   const inputs = {};
@@ -992,7 +1057,8 @@ void main() {
   let prog, U = {};
   const UNIFORMS = ['uRes', 'uCenter', 'uScaleRef', 'uTanHalf', 'uCamDist', 'uTime', 'uRot', 'uCoreR', 'uSat', 'uSatR',
     'uK', 'uDent', 'uDentR', 'uNoiseAmp', 'uRippleAmp', 'uBound', 'uSpike', 'uSpikeN', 'uSpikeW', 'uBands', 'uDark',
-    'uShapeA', 'uShapeB', 'uMix', 'uBass', 'uOpen', 'uGear', 'uTint', 'uTintAmt', 'uIrid', 'uGlow'];
+    'uShapeA', 'uShapeB', 'uMix', 'uBass', 'uOpen', 'uGear', 'uTint', 'uTintAmt', 'uIrid', 'uGlow',
+    'uShape0', 'uShape1', 'uShapeThick', 'uShapeRound'];
   function buildProgram() {
     prog = gl.createProgram();
     gl.attachShader(prog, compile(gl.VERTEX_SHADER, VERT));
@@ -1009,7 +1075,9 @@ void main() {
   }
   let contextLost = false;
   canvas.addEventListener('webglcontextlost', (e) => { e.preventDefault(); contextLost = true; });
-  canvas.addEventListener('webglcontextrestored', () => { try { buildProgram(); contextLost = false; } catch (e) { fatal('Il contesto grafico è stato perso.', String(e)); } });
+  canvas.addEventListener('webglcontextrestored', () => {
+    try { buildProgram(); initShapeTextures(); contextLost = false; } catch (e) { fatal('Il contesto grafico è stato perso.', String(e)); }
+  });
 
   // risoluzione: in "Auto" si adatta al tempo di frame
   const dyn = { scale: 0.85, acc: 0, frames: 0, good: 0 };
@@ -1159,7 +1227,9 @@ void main() {
   window.addEventListener('drop', (e) => {
     e.preventDefault(); dragDepth = 0; $('drop').hidden = true;
     const f = e.dataTransfer && e.dataTransfer.files[0];
-    if (f) playFile(f);
+    if (!f) return;
+    if (/^image\//.test(f.type) || /\.svg$/i.test(f.name)) shapeFromFile(f);
+    else playFile(f);
   });
 
   // batteria sintetica per la modalità demo: cassa, rullante, charleston, pad
@@ -1306,7 +1376,7 @@ void main() {
     if (e.target.closest && e.target.closest('input, select, textarea')) return;
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     const k = e.key.toLowerCase();
-    if (k >= '1' && k <= '6') { stopAuto(); setCapability(Number(k) - 1); }
+    if (k >= '1' && k <= '7') { stopAuto(); setCapability(Number(k) - 1); }
     else if (k === 'a') toggleAuto();
     else if (k === 'm') startMic();
     else if (k === 'd') { detach(); setMode('demo'); }
@@ -1324,6 +1394,7 @@ void main() {
     { id: 'docs',   shape: 3, label: 'Documenti', desc: 'ricerca documenti',  ext: 1.6 },
     { id: 'images', shape: 4, label: 'Immagini',  desc: 'ricerca immagini',   ext: 1.55 },
     { id: 'tools',  shape: 5, label: 'Strumenti', desc: 'codice e strumenti', ext: 1.3 },
+    { id: 'custom', shape: 6, label: 'Forma',     desc: 'riferimento esterno', ext: 1.7 },
   ];
   const ICONS = {
     brain: '<path d="M9.5 4.5A3 3 0 0 0 6 7.2a3 3 0 0 0-1.6 5.3A3.2 3.2 0 0 0 7 17.6 3 3 0 0 0 12 19V7a2.6 2.6 0 0 0-2.5-2.5Z"/><path d="M14.5 4.5A3 3 0 0 1 18 7.2a3 3 0 0 1 1.6 5.3A3.2 3.2 0 0 1 17 17.6 3 3 0 0 1 12 19V7a2.6 2.6 0 0 1 2.5-2.5Z"/><path d="M6 7.2c1.5.2 2.4 1 2.6 2.3M18 7.2c-1.5.2-2.4 1-2.6 2.3M7 17.6c1-.8 1.5-1.6 1.6-2.8M17 17.6c-1-.8-1.5-1.6-1.6-2.8"/>',
@@ -1332,21 +1403,28 @@ void main() {
     docs: '<path d="M12 7c-1.6-1.6-4.2-2.2-8-2.2v13.4c3.8 0 6.4.6 8 2.2 1.6-1.6 4.2-2.2 8-2.2V4.8c-3.8 0-6.4.6-8 2.2Z"/><path d="M12 7v13.4"/>',
     images: '<rect x="3.5" y="5" width="17" height="14" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="M20.5 15.5 16 11l-8.5 8"/>',
     tools: '<circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/>',
+    custom: '<path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1.1 5.9L12 16.9l-5.3 2.8 1.1-5.9-4.3-4.1 5.9-.8Z"/>',
   };
+  const CUSTOM = CAPS[CAPS.length - 1];
   const TRANSITION = 1.4;
-  const morph = { a: 0, b: 0, t: 1 };
-  let capNow = 0, autoOn = false, autoTimer = 0;
+  // la transizione interpola due campi di distanza: a e b sono {shape, ext}, t l'avanzamento 0..1
+  const morph = { a: { shape: 0, ext: 0 }, b: { shape: 0, ext: 0 }, t: 1 };
+  let capNow = 0, autoOn = false, autoTimer = 0, customReady = false;
 
   function paintCaps() {
     for (const c of CAPS) $('cap-' + c.id).setAttribute('aria-pressed', c === CAPS[capNow]);
     $('cap-now').textContent = CAPS[capNow].label + ' · ' + CAPS[capNow].desc;
   }
+  function startMorph(shape, ext, instant) {
+    morph.a = morph.t > 0.5 ? morph.b : morph.a;
+    morph.b = { shape, ext };
+    morph.t = instant ? 1 : 0;
+  }
   function setCapability(name, opts = {}) {
     const i = typeof name === 'number' ? name : CAPS.findIndex((c) => c.id === name);
     if (i < 0 || i >= CAPS.length || i === capNow) return false;
-    morph.a = morph.t > 0.5 ? morph.b : morph.a;
-    morph.b = i;
-    morph.t = opts.instant ? 1 : 0;
+    if (CAPS[i] === CUSTOM && !customReady) return false;
+    startMorph(CAPS[i].shape, CAPS[i].ext, opts.instant);
     capNow = i;
     paintCaps();
     return true;
@@ -1365,17 +1443,23 @@ void main() {
     b.title = c.desc;
     b.setAttribute('aria-pressed', 'false');
     b.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[c.id]}</svg><span>${c.label}</span>`;
-    b.onclick = () => { stopAuto(); setCapability(c.id); };
+    b.onclick = () => {
+      stopAuto();
+      if (c === CUSTOM && !customReady) { $('shape-input').click(); return; }
+      setCapability(c.id);
+    };
     rail.insertBefore(b, $('cap-auto'));
   }
   $('cap-auto').onclick = () => toggleAuto();
 
   // pilotaggio esterno: hash (#web), postMessage e API globale
   const hashCap = location.hash.slice(1);
-  if (CAPS.some((c) => c.id === hashCap)) setCapability(hashCap, { instant: true });
+  if (hashCap !== 'custom' && CAPS.some((c) => c.id === hashCap)) setCapability(hashCap, { instant: true });
   window.addEventListener('message', (e) => {
     const d = e.data;
-    if (d && d.type === 'sigmabrain:capability' && typeof d.name === 'string') setCapability(d.name);
+    if (!d || typeof d !== 'object') return;
+    if (d.type === 'sigmabrain:capability' && typeof d.name === 'string') { stopAuto(); setCapability(d.name); }
+    if (d.type === 'sigmabrain:shape' && d.source != null) setShape(d.source, d.options || {});
   });
   window.sigmaBrain = {
     capabilities: CAPS.map((c) => c.id),
@@ -1388,6 +1472,9 @@ void main() {
     setColorMode: (m) => { if (!COLOR_MODES.includes(m)) return false; S.colorMode = m; syncControls(); save(); return true; },
     setColor: (hex) => { if (!/^#[0-9a-f]{6}$/i.test(hex)) return false; S.color = hex; S.colorMode = 'fixed'; syncControls(); save(); return true; },
     setCapabilityColor: (name, hex) => { if (!(name in CAP_COLORS) || !/^#[0-9a-f]{6}$/i.test(hex)) return false; CAP_COLORS[name] = hex; return true; },
+    setShape: (source, options) => setShape(source, options || {}),
+    clearShape: () => { stopAuto(); return setCapability('brain'); },
+    get shapeName() { return customReady ? CUSTOM.desc : null; },
   };
   window.ferrofluido = window.sigmaBrain; // alias storico
   window.addEventListener('message', (e) => {
@@ -1396,6 +1483,288 @@ void main() {
     if (d.type === 'sigmabrain:color' && typeof d.color === 'string') window.sigmaBrain.setColor(d.color);
     if (d.type === 'sigmabrain:colorMode' && typeof d.mode === 'string') window.sigmaBrain.setColorMode(d.mode);
   });
+
+  // ---------- forma esterna: silhouette → campo di distanza 2D → texture ----------
+  const SHAPE_N = 384, SHAPE_HALF = 1.1, SHAPE_FIT = 0.84, TEMP = 1024;
+  const shapeTex = [null, null], shapeData = [null, null], shapeInfo = [{ maxInside: 0.2 }, { maxInside: 0.2 }];
+  let shapeSlot = 0;
+
+  // texture R16F: filtrabile in WebGL2 senza estensioni, precisione ~0.0003 contro 0.004 di un byte
+  function initShapeTextures() {
+    const empty = new Float32Array(SHAPE_N * SHAPE_N).fill(1);
+    for (let i = 0; i < 2; i++) {
+      shapeTex[i] = gl.createTexture();
+      gl.activeTexture(gl.TEXTURE0 + i);
+      gl.bindTexture(gl.TEXTURE_2D, shapeTex[i]);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.R16F, SHAPE_N, SHAPE_N, 0, gl.RED, gl.FLOAT, shapeData[i] || empty);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    }
+    gl.useProgram(prog);
+    gl.uniform1i(U.uShape0, 0);
+    gl.uniform1i(U.uShape1, 1);
+  }
+  function uploadShape(slot) {
+    gl.activeTexture(gl.TEXTURE0 + slot);
+    gl.bindTexture(gl.TEXTURE_2D, shapeTex[slot]);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.R16F, SHAPE_N, SHAPE_N, 0, gl.RED, gl.FLOAT, shapeData[slot]);
+  }
+  initShapeTextures();
+
+  // trasformata di distanza 1D (Felzenszwalb & Huttenlocher), sui quadrati delle distanze
+  function edt1d(f, n, d, v, z) {
+    let k = 0;
+    v[0] = 0; z[0] = -1e20; z[1] = 1e20;
+    for (let q = 1; q < n; q++) {
+      let s = ((f[q] + q * q) - (f[v[k]] + v[k] * v[k])) / (2 * q - 2 * v[k]);
+      while (s <= z[k]) { k--; s = ((f[q] + q * q) - (f[v[k]] + v[k] * v[k])) / (2 * q - 2 * v[k]); }
+      k++; v[k] = q; z[k] = s; z[k + 1] = 1e20;
+    }
+    k = 0;
+    for (let q = 0; q < n; q++) { while (z[k + 1] < q) k++; d[q] = (q - v[k]) * (q - v[k]) + f[v[k]]; }
+  }
+  // distanza al quadrato dal più vicino pixel con mask == target
+  function edt(mask, n, target) {
+    const f = new Float64Array(n * n);
+    for (let i = 0; i < n * n; i++) f[i] = mask[i] === target ? 0 : 1e10;
+    const d = new Float64Array(n), v = new Int32Array(n), z = new Float64Array(n + 1), col = new Float64Array(n);
+    for (let x = 0; x < n; x++) {
+      for (let y = 0; y < n; y++) col[y] = f[y * n + x];
+      edt1d(col, n, d, v, z);
+      for (let y = 0; y < n; y++) f[y * n + x] = d[y];
+    }
+    for (let y = 0; y < n; y++) {
+      edt1d(f.subarray(y * n, y * n + n), n, d, v, z);
+      for (let x = 0; x < n; x++) f[y * n + x] = d[x];
+    }
+    return f;
+  }
+  // campo con segno in unità mondo; sul bordo la distanza viene dalla copertura anti-aliasata
+  // del pixel (precisione sub-texel), lontano dal bordo dalla trasformata esatta
+  function buildField(mask, cov) {
+    const n = SHAPE_N, texel = 2 * SHAPE_HALF / n;
+    const dOut = edt(mask, n, 1), dIn = edt(mask, n, 0);
+    const out = new Float32Array(n * n);
+    let maxInside = 0;
+    for (let i = 0; i < n * n; i++) {
+      const db = mask[i] ? -(Math.sqrt(dIn[i]) - 0.5) : Math.sqrt(dOut[i]) - 0.5;
+      const w = clamp(1.5 - Math.abs(db), 0, 1);
+      const d = (db + ((0.5 - cov[i]) - db) * w) * texel;
+      if (-d > maxInside) maxInside = -d;
+      out[i] = d;
+    }
+    return { data: out, maxInside };
+  }
+
+  // copertura 0..1 di un pixel: alpha, oppure luminanza con soglia morbida per immagini opache
+  const coverage = (px, i, mode, invert) => {
+    const a = px[i + 3] / 255;
+    let c = a;
+    if (mode !== 'alpha') c = a * clamp((160 - (0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2])) / 64, 0, 1);
+    return invert ? a - c : c;
+  };
+  const insidePx = (px, i, mode, invert) => coverage(px, i, mode, invert) >= 0.5;
+  // ritaglia la silhouette, la centra nel quadrato della texture e produce la maschera binaria
+  function fitAndMask(temp, mode, invert) {
+    const T = temp.width;
+    const img = temp.getContext('2d').getImageData(0, 0, T, T).data;
+    let x0 = T, y0 = T, x1 = -1, y1 = -1;
+    for (let y = 0; y < T; y++) for (let x = 0; x < T; x++) {
+      if (!insidePx(img, (y * T + x) * 4, mode, invert)) continue;
+      if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+    }
+    if (x1 < 0) return null;
+    const bw = x1 - x0 + 1, bh = y1 - y0 + 1;
+    const n = SHAPE_N, scale = SHAPE_FIT * n / Math.max(bw, bh);
+    const dw = bw * scale, dh = bh * scale, dx = (n - dw) / 2, dy = (n - dh) / 2;
+    const c = document.createElement('canvas');
+    c.width = n; c.height = n;
+    const ctx = c.getContext('2d');
+    ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(temp, x0, y0, bw, bh, dx, dy, dw, dh);
+    const px = ctx.getImageData(0, 0, n, n).data;
+    const mask = new Uint8Array(n * n), cov = new Float32Array(n * n);
+    for (let i = 0; i < n * n; i++) {
+      cov[i] = coverage(px, i * 4, mode, invert);
+      mask[i] = cov[i] >= 0.5 ? 1 : 0;
+    }
+    return { mask, cov, halfW: dw / n * SHAPE_HALF, halfH: dh / n * SHAPE_HALF };
+  }
+
+  const loadImage = (src) => new Promise((ok, err) => {
+    const im = new Image();
+    im.crossOrigin = 'anonymous';
+    im.onload = () => ok(im);
+    im.onerror = () => err(new Error('Immagine non caricata: controlla il file o l\'indirizzo.'));
+    im.src = src;
+  });
+  function svgToDataUrl(markup) {
+    const doc = new DOMParser().parseFromString(markup, 'image/svg+xml');
+    const svg = doc.documentElement;
+    if (svg.nodeName !== 'svg' || doc.querySelector('parsererror')) throw new Error('SVG non valido.');
+    if (!svg.getAttribute('width') || !svg.getAttribute('height')) {
+      const vb = (svg.getAttribute('viewBox') || '0 0 512 512').trim().split(/[\s,]+/).map(Number);
+      svg.setAttribute('width', String(vb[2] || 512));
+      svg.setAttribute('height', String(vb[3] || 512));
+    }
+    return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(new XMLSerializer().serializeToString(svg));
+  }
+  function pathBBox(d) {
+    const ns = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(ns, 'svg');
+    svg.setAttribute('width', '0'); svg.setAttribute('height', '0');
+    svg.style.cssText = 'position:absolute;visibility:hidden';
+    const path = document.createElementNS(ns, 'path');
+    path.setAttribute('d', d);
+    svg.appendChild(path);
+    document.body.appendChild(svg);
+    try { return path.getBBox(); } finally { svg.remove(); }
+  }
+  function drawContain(ctx, im) {
+    const s = Math.min(TEMP * 0.9 / im.width, TEMP * 0.9 / im.height);
+    const dw = im.width * s, dh = im.height * s;
+    ctx.drawImage(im, (TEMP - dw) / 2, (TEMP - dh) / 2, dw, dh);
+  }
+  // immagine opaca → silhouette per luminanza; con trasparenza → per alpha
+  function detectMode(temp) {
+    const px = temp.getContext('2d').getImageData(0, 0, TEMP, TEMP).data;
+    let soft = 0, dark = 0, light = 0;
+    for (let i = 3; i < px.length; i += 4 * 7) {
+      const a = px[i];
+      if (a === 0) continue;
+      if (a < 250) soft++;
+      const lum = 0.299 * px[i - 3] + 0.587 * px[i - 2] + 0.114 * px[i - 1];
+      if (lum < 128) dark++; else light++;
+    }
+    return soft > 50 || light === 0 ? 'alpha' : 'lum';
+  }
+  function parseSource(source) {
+    if (typeof source !== 'string') return source;
+    const s = source.trim();
+    if (/^<svg[\s>]/i.test(s)) return { svg: s };
+    if (/^[mM]\s*-?[\d.]/.test(s) && s.length > 6) return { path: s };
+    if (/^(data:|https?:\/\/|blob:)/.test(s) || /\.(svg|png|jpe?g|webp|gif|avif)$/i.test(s)) return { image: s, name: s.split('/').pop().split('?')[0].slice(0, 28) };
+    return { text: s };
+  }
+  async function rasterize(source) {
+    const src = parseSource(source);
+    if (!src || typeof src !== 'object') throw new Error('Sorgente non riconosciuta.');
+    const temp = document.createElement('canvas');
+    temp.width = TEMP; temp.height = TEMP;
+    const ctx = temp.getContext('2d');
+    ctx.fillStyle = '#000';
+    if (src.text) {
+      const text = String(src.text).slice(0, 12);
+      const family = src.font || 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif';
+      let size = TEMP * 0.6;
+      ctx.font = `bold ${size}px ${family}`;
+      const w = ctx.measureText(text).width;
+      if (w > TEMP * 0.9) { size *= TEMP * 0.9 / w; ctx.font = `bold ${size}px ${family}`; }
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(text, TEMP / 2, TEMP / 2);
+      return { temp, mode: 'alpha', name: text };
+    }
+    if (src.path) {
+      const vb = src.viewBox;
+      const bb = vb ? { x: vb[0], y: vb[1], width: vb[2], height: vb[3] } : pathBBox(src.path);
+      if (!(bb.width > 0 || bb.height > 0)) throw new Error('Il path SVG è vuoto.');
+      const s = TEMP * 0.9 / Math.max(bb.width, bb.height);
+      ctx.translate(TEMP / 2, TEMP / 2);
+      ctx.scale(s, s);
+      ctx.translate(-(bb.x + bb.width / 2), -(bb.y + bb.height / 2));
+      ctx.fill(new Path2D(src.path), src.fillRule === 'evenodd' ? 'evenodd' : 'nonzero');
+      return { temp, mode: 'alpha', name: src.name || 'path SVG' };
+    }
+    if (src.svg) {
+      drawContain(ctx, await loadImage(svgToDataUrl(src.svg)));
+      return { temp, mode: 'alpha', name: src.name || 'SVG' };
+    }
+    if (src.image) {
+      let im = src.image;
+      if (im instanceof Blob) {
+        const url = URL.createObjectURL(im);
+        try { im = await loadImage(url); } finally { URL.revokeObjectURL(url); }
+      } else if (typeof im === 'string') im = await loadImage(im);
+      drawContain(ctx, im);
+      return { temp, mode: detectMode(temp), invert: src.invert, name: src.name || 'immagine' };
+    }
+    throw new Error('Sorgente non riconosciuta: usa testo, path, svg o image.');
+  }
+
+  function persistable(source) {
+    if (typeof source === 'string') return source.length < 20000 ? source : null;
+    if (!source || typeof source !== 'object') return null;
+    if (!(source.text || source.path || source.svg)) return null;
+    const keep = { text: source.text, path: source.path, svg: source.svg, viewBox: source.viewBox, fillRule: source.fillRule, name: source.name };
+    return JSON.stringify(keep).length < 30000 ? keep : null;
+  }
+  async function setShape(source, opts = {}) {
+    let fit, name;
+    try {
+      const ras = await rasterize(source);
+      fit = fitAndMask(ras.temp, ras.mode, ras.invert);
+      if (!fit) throw new Error('Non trovo una silhouette: l\'immagine è vuota o troppo chiara.');
+      name = opts.name || ras.name;
+    } catch (e) {
+      const msg = e && e.name === 'SecurityError'
+        ? 'Il browser blocca la lettura di questa immagine (CORS). Scarica il file e caricalo dal pannello.'
+        : (e && e.message) || 'Forma non caricata.';
+      if (!opts.silent) setStatus(msg, true, 9000);
+      return false;
+    }
+    const field = buildField(fit.mask, fit.cov);
+    shapeSlot = 1 - shapeSlot;
+    shapeData[shapeSlot] = field.data;
+    shapeInfo[shapeSlot] = { maxInside: field.maxInside };
+    uploadShape(shapeSlot);
+    CUSTOM.shape = 6 + shapeSlot;
+    CUSTOM.ext = Math.hypot(fit.halfW, fit.halfH) + 0.55;
+    CUSTOM.desc = name;
+    customReady = true;
+    if (typeof opts.thickness === 'number') setParam('shapeThick', opts.thickness);
+    if (typeof opts.rounding === 'number') setParam('shapeRound', opts.rounding);
+    const keep = persistable(source);
+    if (keep) { S.shapeSrc = keep; save(); }
+    const customIdx = CAPS.indexOf(CUSTOM);
+    if (opts.activate !== false) {
+      stopAuto();
+      startMorph(CUSTOM.shape, CUSTOM.ext, !!opts.instant);
+      capNow = customIdx;
+    } else if (capNow === customIdx) {
+      startMorph(CUSTOM.shape, CUSTOM.ext, !!opts.instant);
+    }
+    paintCaps();
+    if (!opts.silent) setStatus('Forma caricata: ' + name, false, 3000);
+    return true;
+  }
+  function setParam(id, v) {
+    const p = inputs[id].p;
+    S[id] = clamp(v, p.min, p.max);
+    inputs[id].input.value = S[id];
+    inputs[id].paint();
+    save();
+  }
+  function shapeFromFile(file) {
+    if (!file) return;
+    if (file.type === 'image/svg+xml' || /\.svg$/i.test(file.name)) {
+      file.text().then((t) => setShape({ svg: t, name: file.name }));
+    } else {
+      setShape({ image: file, name: file.name });
+    }
+  }
+  $('shape-apply').onclick = () => { const v = $('shape-text').value.trim(); if (v) setShape(v); };
+  $('shape-text').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('shape-apply').click(); } });
+  $('shape-presets').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-src]');
+    if (b) { $('shape-text').value = b.dataset.src; setShape(b.dataset.src); }
+  });
+  $('shape-file').onclick = () => $('shape-input').click();
+  $('shape-input').addEventListener('change', (e) => { shapeFromFile(e.target.files[0]); e.target.value = ''; });
+
+  // forma iniziale: quella salvata (o la Σ di Sigma); attiva subito solo se l'URL lo chiede
+  setShape(S.shapeSrc || 'Σ', { activate: hashCap === 'custom', instant: true, silent: true });
 
   // ---------- colore ----------
   const hexToLin = (hex) => {
@@ -1410,7 +1779,7 @@ void main() {
   let tintHex = '#ffffff', amtCur = 0, glowCur = 0;
   function colorTarget() {
     switch (S.colorMode) {
-      case 'capability': return { hex: CAP_COLORS[CAPS[morph.b].id], amt: S.tintAmt, glow: 0.2 * A.level, rate: 3 };
+      case 'capability': return { hex: CAP_COLORS[CAPS[capNow].id], amt: S.tintAmt, glow: 0.2 * A.level, rate: 3 };
       case 'audio': {
         const hue = clamp((A.centroid - 0.12) / 0.5, 0, 1) * 0.8;
         return { hex: hslToHex(hue, 0.9, 0.55), amt: S.tintAmt * clamp(0.3 + A.level, 0, 1), glow: 0.7 * A.level, rate: 6 };
@@ -1485,10 +1854,18 @@ void main() {
     T += dt * (0.22 + 0.9 * A.level + 0.35 * A.bass) * (0.35 + 0.65 * S.morph) * (reducedMotion ? 0.5 : 1);
 
     // transizione di forma; a metà strada il fluido "si scioglie" (melt) prima di ricomporsi
-    if (autoOn) { autoTimer += dt; if (autoTimer > 4.5) { autoTimer = 0; setCapability((capNow + 1) % CAPS.length); } }
+    if (autoOn) {
+      autoTimer += dt;
+      if (autoTimer > 4.5) {
+        autoTimer = 0;
+        let next = (capNow + 1) % CAPS.length;
+        if (CAPS[next] === CUSTOM && !customReady) next = (next + 1) % CAPS.length;
+        setCapability(next);
+      }
+    }
     if (morph.t < 1) morph.t = Math.min(1, morph.t + dt / TRANSITION);
     const mt = morph.t, mixEase = mt * mt * (3 - 2 * mt), melt = Math.sin(Math.PI * mt);
-    const shapeA = CAPS[morph.a].shape, shapeB = CAPS[morph.b].shape;
+    const shapeA = morph.a.shape, shapeB = morph.b.shape;
     const shapeW = (shapeA ? 1 : 0) * (1 - mixEase) + (shapeB ? 1 : 0) * mixEase;
     // il corpo libero ruota su sé stesso; le forme oscillano restando rivolte alla camera
     const sway = 0.28 * Math.sin(T * 0.3);
@@ -1531,7 +1908,7 @@ void main() {
     const K = 0.24 + 0.14 * amt;
     const noiseAmp = 0.035 + amt * (0.09 + 0.1 * A.mid) + 0.14 * melt;
     const rippleAmp = 0.003 + 0.014 * A.treble * amt + 0.012 * melt;
-    const extShape = Math.max(extent, CAPS[morph.a].ext, CAPS[morph.b].ext);
+    const extShape = Math.max(extent, morph.a.ext, morph.b.ext);
     const bound = extShape + K * 0.25 + noiseAmp + rippleAmp + (A.spike > 0.002 ? A.spike * 1.25 + 0.1 : 0) + 0.06;
 
     const w = canvas.width, h = canvas.height;
@@ -1558,6 +1935,9 @@ void main() {
     gl.uniform1f(U.uTintAmt, amtCur);
     gl.uniform1f(U.uIrid, S.irid);
     gl.uniform1f(U.uGlow, glowCur * amtCur);
+    const slotInfo = shapeInfo[clamp(morph.b.shape - 6, 0, 1)];
+    gl.uniform1f(U.uShapeThick, S.shapeThick);
+    gl.uniform1f(U.uShapeRound, Math.min(S.shapeThick * S.shapeRound, 0.45 * slotInfo.maxInside));
     gl.uniform1f(U.uCoreR, coreR);
     gl.uniform3fv(U.uSat, satPos);
     gl.uniform1fv(U.uSatR, satR);

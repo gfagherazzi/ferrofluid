@@ -12,6 +12,10 @@ Un solo file, `index.html`, senza dipendenze né build: WebGL2 + GLSL (ray march
 |---|---|---|
 | ![](docs/immagini-foto.png) | ![](docs/strumenti-ingranaggio.png) | ![](docs/iridescenza.png) |
 
+| Forma esterna: `setShape('Σ')` | Forma esterna: `setShape('★')` | Forma esterna: SVG |
+|---|---|---|
+| ![](docs/forma-sigma.png) | ![](docs/forma-stella.png) | ![](docs/forma-svg.png) |
+
 ## Indice
 
 - [Avvio](#avvio)
@@ -60,8 +64,28 @@ Sei stati, selezionabili dalla barra a sinistra (sul telefono: striscia sotto l'
 | 4 | `docs` | libro aperto | si apre di più con il volume | ambra |
 | 5 | `images` | foto con sole e montagne in rilievo | oscilla lentamente | verde acqua |
 | 6 | `tools` | ingranaggio | gira più veloce con il volume | arancio |
+| 7 | `custom` | **forma esterna**: qualsiasi silhouette (vedi sotto) | oscilla lentamente, increspature | viola |
 
 La transizione tra due forme dura 1,4 s: il fluido si "scioglie" a metà strada e si ricompone nella forma nuova. Nelle forme il corpo resta vivo (onde e increspature attenuate) e oscilla di ±16° invece di ruotare, così resta rivolto verso chi guarda. Trascinando si ruota comunque a mano; doppio clic riporta la vista al centro.
+
+## Forma esterna
+
+Lo stato **Forma** (tasto `7`) prende la silhouette da un riferimento grafico fornito dall'esterno e la trasforma in una massa liquida 3D. All'apertura contiene la Σ di Sigma.
+
+Sorgenti accettate:
+
+| Sorgente | Esempio |
+|---|---|
+| emoji o testo breve (max 12 caratteri) | `🚀`, `Σ`, `★`, `AI` |
+| path SVG (attributo `d`) | `M12 2L2 22h20Z` |
+| SVG completo | `<svg viewBox="0 0 100 100">…</svg>` |
+| immagine PNG/JPG/WebP | file, URL o data URI; con trasparenza usa l'alpha, altrimenti legge la silhouette scura su fondo chiaro |
+
+Dal pannello **Parametri → Forma esterna**: campo di testo con preset (Σ ★ ⚡ 🚀 🧠 e un path), pulsante **Carica…** per file SVG o immagine, slider **Spessore** (profondità dell'estrusione) e **Arrotondamento** (quanto i bordi si gonfiano; limitato automaticamente dallo spessore dei tratti più sottili, così le icone a linea non spariscono). Si può anche trascinare un SVG o un PNG sulla pagina.
+
+Come funziona: la silhouette viene disegnata su un canvas, ritagliata e centrata; si calcola la trasformata di distanza esatta (Felzenszwalb–Huttenlocher) dentro e fuori, corretta sul bordo con la copertura anti-aliasata del pixel, ottenendo un campo di distanza con segno a 384×384 caricato come texture half-float. Lo shader la legge come campo 2D, la estrude in profondità con bordi arrotondati e le applica le stesse onde e increspature delle altre forme. Due texture si alternano, quindi anche il passaggio da una forma esterna all'altra è una transizione fluida.
+
+Le sorgenti testuali (emoji, path, SVG) restano salvate nel browser e vengono ricaricate all'apertura; le immagini da file no.
 
 ## Colore
 
@@ -101,7 +125,7 @@ Sopra una soglia critica Bc la superficie di un ferrofluido reale si rompe in pu
 | trascina | ruota la massa |
 | rotella / pizzico | dimensione |
 | doppio clic | riporta vista e dimensione ai default |
-| `1`–`6` | capability |
+| `1`–`7` | capability (7 = forma esterna) |
 | `A` | sequenza automatica delle capability |
 | `M` / `D` | microfono / demo |
 | `Spazio` | pausa e riproduzione del file audio |
@@ -115,7 +139,7 @@ La pagina espone `window.sigmaBrain` (alias `window.ferrofluido`, mantenuto per 
 
 | Membro | Tipo | Descrizione |
 |---|---|---|
-| `capabilities` | `string[]` | `['brain','chat','web','docs','images','tools']` |
+| `capabilities` | `string[]` | `['brain','chat','web','docs','images','tools','custom']` |
 | `capability` | `string` (sola lettura) | stato corrente |
 | `progress` | `number` (sola lettura) | avanzamento della transizione di forma, 0..1 (1 = ferma) |
 | `setCapability(id)` | `→ boolean` | cambia stato; `false` se l'id non esiste o è già attivo. Spegne Auto |
@@ -125,10 +149,20 @@ La pagina espone `window.sigmaBrain` (alias `window.ferrofluido`, mantenuto per 
 | `setColorMode(mode)` | `→ boolean` | cambia sorgente del colore |
 | `setColor('#rrggbb')` | `→ boolean` | imposta un colore fisso e passa alla sorgente `fixed` |
 | `setCapabilityColor(id, '#rrggbb')` | `→ boolean` | cambia il colore associato a uno stato (sorgente `capability`) |
+| `setShape(source, options?)` | `→ Promise<boolean>` | carica una forma esterna e (di default) passa allo stato `custom`. `source`: stringa (emoji/testo, path `M…`, markup `<svg…>`, URL o data URI di immagine) oppure oggetto `{ text }`, `{ path, viewBox?, fillRule? }`, `{ svg }`, `{ image: url \| File \| Blob \| HTMLImageElement, invert? }`, tutti con `name?`. `options`: `{ thickness?: 0.06–0.5, rounding?: 0–1, activate?: boolean, instant?: boolean, silent?: boolean }` |
+| `clearShape()` | `→ boolean` | torna allo stato `brain` |
+| `shapeName` | `string \| null` (sola lettura) | nome della forma esterna caricata |
 
 Esempi:
 
 ```js
+sigmaBrain.setShape('🚀');                                 // emoji
+sigmaBrain.setShape('M12 2L2 22h20Z');                     // path SVG
+sigmaBrain.setShape({ svg: svgMarkup, name: 'logo' });    // SVG completo
+sigmaBrain.setShape({ image: '/icons/bolt.png' }, { thickness: 0.3 });
+sigmaBrain.setShape(fileInput.files[0]);                   // File da un <input type="file">
+sigmaBrain.setShape('★', { activate: false });             // precarica senza cambiare stato
+
 sigmaBrain.setCapability('web');          // il fluido diventa un pianeta
 sigmaBrain.setColor('#ff0066');           // tinta fissa magenta
 sigmaBrain.setColorMode('audio');         // il colore segue il suono
@@ -151,7 +185,11 @@ const w = iframe.contentWindow;
 w.postMessage({ type: 'sigmabrain:capability', name: 'docs' }, '*');
 w.postMessage({ type: 'sigmabrain:color', color: '#ff0066' }, '*');
 w.postMessage({ type: 'sigmabrain:colorMode', mode: 'audio' }, '*');
+w.postMessage({ type: 'sigmabrain:shape', source: '🚀', options: { thickness: 0.3 } }, '*');
+w.postMessage({ type: 'sigmabrain:shape', source: { svg: svgMarkup, name: 'logo' } }, '*');
 ```
+
+Per `postMessage` la sorgente deve essere serializzabile: testo, path, markup SVG, URL o data URI; un `File` o `Blob` va passato direttamente a `setShape` dalla stessa pagina.
 
 ## Integrazione in un'app
 
@@ -179,6 +217,7 @@ Note:
 
 - **Forma**: tutto è un campo di distanza con segno (SDF) valutato per pixel in un fragment shader (ray marching, 160 passi max, bounding sphere per saltare il vuoto). Lo stato Cervello è un nucleo più sei lobi che orbitano guidati dalle bande di frequenza, uniti con *smooth minimum*, due sfere sottratte che creano le pieghe, un rumore lento e increspature veloci (acuti) sulla superficie.
 - **Capability**: ogni forma è un SDF scritto con primitive classiche (sfere, coni arrotondati, box arrotondati, ripetizione polare per i denti dell'ingranaggio, triangoli estrusi per le montagne). Il passaggio da una forma all'altra è un'interpolazione lineare tra i due campi, che il ray marching attraversa senza problemi perché resta 1-Lipschitz; un picco di rumore a metà transizione dà l'effetto "si scioglie e si ricompone".
+- **Forma esterna**: silhouette → copertura anti-aliasata 384×384 → trasformata di distanza esatta, con la distanza sul bordo ricavata dalla copertura → texture R16F letta con `textureLod` nello shader ed estrusa con bordi arrotondati (somma di Minkowski tra la forma ristretta e una sfera). Fuori dal quadrato della texture il campo continua con la distanza dal quadrato, così il ray marching resta corretto.
 - **Punte**: coni su un reticolo di Fibonacci sferico, valutato in forma chiusa (inverse mapping di Keinert et al.), quindi il costo non cresce con il numero di punte.
 - **Materiale**: superficie quasi nera con riflessi di Fresnel di un ambiente da studio calcolato analiticamente (tre softbox, una striscia, due punti luce, un pannello frontale), occlusione ambientale a 5 campioni, bordo anti-aliasato per copertura stimata del pixel. La tinta entra nel colore del corpo, in un bordo colorato verso la silhouette e, in parte, nei riflessi; l'iridescenza è una pellicola sottile il cui colore dipende dall'angolo di vista.
 - **Audio**: `AnalyserNode` a 2048 campioni; 32 bande logaritmiche da 30 Hz a 14 kHz; RMS con pavimento di rumore adattivo e guadagno automatico; inviluppi con attacco e rilascio separati (la viscosità); baricentro spettrale per la tonalità in modalità Audio.
