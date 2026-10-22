@@ -589,6 +589,8 @@ uniform float uShapeThick;
 uniform float uShapeRound;
 uniform float uShapeEngrave;
 uniform float uNormEps;
+uniform float uShapeReact;
+uniform float uLevel;
 
 const float PI  = 3.14159265359;
 const float PHI = 1.61803398875;
@@ -744,16 +746,20 @@ vec2 customField(sampler2D tex, vec2 xy) {
   return s;
 }
 float sdCustom(vec3 p, int slot) {
-  p.yz = rot2(0.12) * p.yz;
+  // reattività: pulsa con i bassi, un leggero colpo di inclinazione, lo spessore respira col volume
+  float sc = 1.0 + uShapeReact * 0.10 * uBass;
+  p /= sc;
+  p.yz = rot2(0.12 + uShapeReact * 0.10 * uBass) * p.yz;
   p.xz = rot2(-0.18 + 0.06 * sin(uTime * 0.6)) * p.xz;
   vec2 f = slot == 0 ? customField(uShape0, p.xy) : customField(uShape1, p.xy);
   // incisione: la faccia frontale arretra dove l'immagine è più scura, la posteriore resta ferma
   float e = uShapeEngrave * f.y;
-  float r = min(uShapeRound, max(uShapeThick - e, 0.02));
-  vec2 w = vec2(f.x + r, abs(p.z + 0.5 * e) - (uShapeThick - r - 0.5 * e));
+  float thick = uShapeThick * (1.0 + uShapeReact * 0.7 * uLevel);
+  float r = min(uShapeRound, max(thick - e, 0.02));
+  vec2 w = vec2(f.x + r, abs(p.z + 0.5 * e) - (thick - r - 0.5 * e));
   // con l'incisione il campo non è più una distanza esatta: il passo del ray marching si riduce in
   // main(), così il valore resta in scala con le altre forme (onde, punte, AO e transizioni)
-  return min(max(w.x, w.y), 0.0) + length(max(w, 0.0)) - r;
+  return (min(max(w.x, w.y), 0.0) + length(max(w, 0.0)) - r) * sc;
 }
 
 float shapeD(int id, vec3 p) {
@@ -770,8 +776,9 @@ float shapeD(int id, vec3 p) {
 // Corpo: forma corrente (o fusione tra due durante la transizione) + onde lente e increspature
 float body(vec3 p) {
   float d, live;
-  float la = uShapeA == 0 ? 1.0 : 0.3;
-  float lb = uShapeB == 0 ? 1.0 : 0.3;
+  // onde e increspature: piene sul corpo libero, attenuate sulle forme; le forme esterne seguono la reattività
+  float la = uShapeA == 0 ? 1.0 : (uShapeA >= 6 ? 0.3 + 0.5 * uShapeReact : 0.3);
+  float lb = uShapeB == 0 ? 1.0 : (uShapeB >= 6 ? 0.3 + 0.5 * uShapeReact : 0.3);
   if (uMix <= 0.0)      { d = shapeD(uShapeA, p); live = la; }
   else if (uMix >= 1.0) { d = shapeD(uShapeB, p); live = lb; }
   else { d = mix(shapeD(uShapeA, p), shapeD(uShapeB, p), uMix); live = mix(la, lb, uMix); }
@@ -970,7 +977,7 @@ void main() {
     spikes: 0, bc: 0.35, density: 200, width: 0.9,
     studio: 'light', quality: 'auto', size: 1,
     colorMode: 'capability', color: '#2f7cff', tintAmt: 0.8, irid: 0,
-    shapeThick: 0.22, shapeRound: 0.6, shapeEngrave: 0.045, shapeSrc: 'Σ',
+    shapeThick: 0.22, shapeRound: 0.6, shapeEngrave: 0.045, shapeReact: 0.6, shapeSrc: 'Σ',
   };
   const CAP_COLORS = { brain: '#8d97a8', chat: '#ff3b5c', web: '#2f7cff', docs: '#f2a93b', images: '#2fd3a6', tools: '#ff7a1a', custom: '#8b5cf6' };
   const STORE_KEY = 'sigmabrain.v1';
@@ -1001,6 +1008,7 @@ void main() {
     { id: 'shapeThick', group: 'group-shape', label: 'Spessore', min: 0.06, max: 0.5, step: 0.01, fmt: (v) => v.toFixed(2) },
     { id: 'shapeRound', group: 'group-shape', label: 'Arrotondamento', min: 0, max: 1, step: 0.01, fmt: pct, help: 'Quanto i bordi si gonfiano; limitato dallo spessore dei tratti più sottili.' },
     { id: 'shapeEngrave', group: 'group-shape', label: 'Incisione', min: 0, max: 0.08, step: 0.001, fmt: (v) => Math.round(v / 0.08 * 100) + '%', help: 'Le zone più scure dell\'immagine (dettagli di emoji e loghi a colori) vengono incise sulla faccia frontale. Non agisce su testo, path e SVG monocromatici.' },
+    { id: 'shapeReact', group: 'group-shape', label: 'Reattività', min: 0, max: 1, step: 0.01, fmt: pct, help: 'Quanto la forma esterna pulsa con i bassi, respira con il volume e si increspa con gli acuti.' },
   ];
 
   const inputs = {};
@@ -1123,7 +1131,7 @@ void main() {
   const UNIFORMS = ['uRes', 'uCenter', 'uScaleRef', 'uTanHalf', 'uCamDist', 'uTime', 'uRot', 'uCoreR', 'uSat', 'uSatR',
     'uK', 'uDent', 'uDentR', 'uNoiseAmp', 'uRippleAmp', 'uBound', 'uSpike', 'uSpikeN', 'uSpikeW', 'uBands', 'uDark',
     'uShapeA', 'uShapeB', 'uMix', 'uBass', 'uOpen', 'uGear', 'uTint', 'uTintAmt', 'uIrid', 'uGlow',
-    'uShape0', 'uShape1', 'uShapeThick', 'uShapeRound', 'uShapeEngrave', 'uNormEps'];
+    'uShape0', 'uShape1', 'uShapeThick', 'uShapeRound', 'uShapeEngrave', 'uNormEps', 'uShapeReact', 'uLevel'];
   function buildProgram() {
     prog = gl.createProgram();
     gl.attachShader(prog, compile(gl.VERTEX_SHADER, VERT));
@@ -1864,7 +1872,7 @@ void main() {
     shapeInfo[shapeSlot] = { maxInside: field.maxInside, hasDark: field.hasDark };
     uploadShape(shapeSlot);
     CUSTOM.shape = 6 + shapeSlot;
-    CUSTOM.ext = Math.hypot(fit.halfW, fit.halfH) + 0.55;
+    CUSTOM.ext = Math.hypot(fit.halfW, fit.halfH) * 1.12 + 0.9;
     CUSTOM.desc = name;
     customReady = true;
     if (typeof opts.thickness === 'number') setParam('shapeThick', opts.thickness);
@@ -1967,8 +1975,8 @@ void main() {
   // ---------- vocabolario di stati ----------
   // ogni stato è un JSON: forma o capability, sequenza o parola, colore, parametri, etichetta.
   // I parametri di uno stato sono sovrapposizioni ai valori base: lo stato successivo li annulla.
-  const STATE_ALIASES = { intensity: 'tintAmt', iridescence: 'irid', thickness: 'shapeThick', rounding: 'shapeRound', engrave: 'shapeEngrave' };
-  const STATE_PARAMS = new Set(['size', 'sens', 'morph', 'visc', 'spin', 'spikes', 'bc', 'density', 'width', 'tintAmt', 'irid', 'shapeThick', 'shapeRound', 'shapeEngrave']);
+  const STATE_ALIASES = { intensity: 'tintAmt', iridescence: 'irid', thickness: 'shapeThick', rounding: 'shapeRound', engrave: 'shapeEngrave', react: 'shapeReact' };
+  const STATE_PARAMS = new Set(['size', 'sens', 'morph', 'visc', 'spin', 'spikes', 'bc', 'density', 'width', 'tintAmt', 'irid', 'shapeThick', 'shapeRound', 'shapeEngrave', 'shapeReact']);
 
   function restoreOverrides() {
     for (const k in stateBackup) { S[k] = stateBackup[k]; delete stateBackup[k]; }
@@ -2023,7 +2031,7 @@ void main() {
     def.intensity = S.tintAmt; def.iridescence = S.irid;
     def.size = S.size; def.spikes = S.spikes; def.bc = S.bc; def.density = S.density; def.width = S.width;
     def.morph = S.morph; def.visc = S.visc; def.spin = S.spin;
-    def.thickness = S.shapeThick; def.rounding = S.shapeRound; def.engrave = S.shapeEngrave;
+    def.thickness = S.shapeThick; def.rounding = S.shapeRound; def.engrave = S.shapeEngrave; def.react = S.shapeReact;
     def.studio = S.studio;
     def.label = label;
     return def;
@@ -2360,6 +2368,8 @@ void main() {
     gl.uniform1f(U.uShapeRound, Math.min(S.shapeThick * S.shapeRound, 0.45 * slotInfo.maxInside));
     gl.uniform1f(U.uShapeEngrave, slotInfo.hasDark && (shapeA >= 6 || shapeB >= 6) ? S.shapeEngrave : 0);
     gl.uniform1f(U.uNormEps, shapeA >= 6 || shapeB >= 6 ? 0.008 : 0.0012);
+    gl.uniform1f(U.uShapeReact, S.shapeReact);
+    gl.uniform1f(U.uLevel, A.level);
     gl.uniform1f(U.uCoreR, coreR);
     gl.uniform3fv(U.uSat, satPos);
     gl.uniform1fv(U.uSatR, satR);

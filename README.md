@@ -67,7 +67,7 @@ Sei stati, selezionabili dalla barra a sinistra (sul telefono: striscia sotto l'
 | 4 | `docs` | libro aperto | si apre di più con il volume | ambra |
 | 5 | `images` | foto con sole e montagne in rilievo | oscilla lentamente | verde acqua |
 | 6 | `tools` | ingranaggio | gira più veloce con il volume | arancio |
-| 7 | `custom` | **forma esterna**: qualsiasi silhouette (vedi sotto) | oscilla lentamente, increspature | viola |
+| 7 | `custom` | **forma esterna**: qualsiasi silhouette (vedi sotto) | pulsa con i bassi, lo spessore respira col volume, increspature; slider **Reattività** | viola |
 
 La transizione tra due forme dura 1,4 s: il fluido si "scioglie" a metà strada e si ricompone nella forma nuova. Nelle forme il corpo resta vivo (onde e increspature attenuate) e oscilla di ±16° invece di ruotare, così resta rivolto verso chi guarda. Trascinando si ruota comunque a mano; doppio clic riporta la vista al centro.
 
@@ -84,7 +84,7 @@ Sorgenti accettate:
 | SVG completo | `<svg viewBox="0 0 100 100">…</svg>` |
 | immagine PNG/JPG/WebP | file, URL o data URI; con trasparenza usa l'alpha, altrimenti legge la silhouette scura su fondo chiaro |
 
-Dal pannello **Parametri → Forma esterna**: campo di testo con preset (Σ ★ ⚡ 🚀 🧠 e un path), pulsante **Carica…** per file SVG o immagine, slider **Spessore** (profondità dell'estrusione), **Arrotondamento** (quanto i bordi si gonfiano; limitato automaticamente dallo spessore dei tratti più sottili, così le icone a linea non spariscono) e **Incisione** (le zone più scure dell'immagine vengono incise sulla faccia frontale: gli occhi e la bocca di 😄, le pieghe di 🧠, i dettagli di un logo a colori; non agisce su testo, path e SVG monocromatici). Si può anche trascinare un SVG o un PNG sulla pagina.
+Dal pannello **Parametri → Forma esterna**: campo di testo con preset (Σ ★ ⚡ 🚀 🧠 e un path), pulsante **Carica…** per file SVG o immagine, slider **Spessore** (profondità dell'estrusione), **Arrotondamento** (quanto i bordi si gonfiano; limitato automaticamente dallo spessore dei tratti più sottili, così le icone a linea non spariscono) e **Incisione** (le zone più scure dell'immagine vengono incise sulla faccia frontale: gli occhi e la bocca di 😄, le pieghe di 🧠, i dettagli di un logo a colori; non agisce su testo, path e SVG monocromatici) e **Reattività** (quanto la forma pulsa con i bassi, respira con il volume e si increspa con gli acuti). Si può anche trascinare un SVG o un PNG sulla pagina.
 
 Cosa funziona meglio: glifi e icone con una silhouette riconoscibile (★ ⚡ 🚀 🔍 📄 💬 ❤, icone a linea tipo Lucide/Feather, loghi). Le emoji che sono dischi colorati (😄 🧠 🌍) si riconoscono grazie all'incisione dei dettagli scuri, ma restano meno leggibili di una silhouette.
 
@@ -127,7 +127,7 @@ Definizione di uno stato (tutte le chiavi sono facoltative):
 | `color` | `#rrggbb` (colore fisso), oppure `capability`, `audio`, `none` |
 | `intensity`, `iridescence` | tinta e pellicola iridescente, 0–1 |
 | `size`, `spikes`, `bc`, `density`, `width`, `morph`, `visc`, `spin` | parametri della massa e delle punte |
-| `thickness`, `rounding`, `engrave` | parametri della forma esterna |
+| `thickness`, `rounding`, `engrave`, `react` | parametri della forma esterna (spessore, arrotondamento, incisione, reattività all'audio) |
 | `studio` | `light` o `dark` |
 | `label` | testo mostrato accanto al pallino colorato in alto a sinistra |
 
