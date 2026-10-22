@@ -81,9 +81,11 @@ Sorgenti accettate:
 | SVG completo | `<svg viewBox="0 0 100 100">…</svg>` |
 | immagine PNG/JPG/WebP | file, URL o data URI; con trasparenza usa l'alpha, altrimenti legge la silhouette scura su fondo chiaro |
 
-Dal pannello **Parametri → Forma esterna**: campo di testo con preset (Σ ★ ⚡ 🚀 🧠 e un path), pulsante **Carica…** per file SVG o immagine, slider **Spessore** (profondità dell'estrusione) e **Arrotondamento** (quanto i bordi si gonfiano; limitato automaticamente dallo spessore dei tratti più sottili, così le icone a linea non spariscono). Si può anche trascinare un SVG o un PNG sulla pagina.
+Dal pannello **Parametri → Forma esterna**: campo di testo con preset (Σ ★ ⚡ 🚀 🧠 e un path), pulsante **Carica…** per file SVG o immagine, slider **Spessore** (profondità dell'estrusione), **Arrotondamento** (quanto i bordi si gonfiano; limitato automaticamente dallo spessore dei tratti più sottili, così le icone a linea non spariscono) e **Incisione** (le zone più scure dell'immagine vengono incise sulla faccia frontale: gli occhi e la bocca di 😄, le pieghe di 🧠, i dettagli di un logo a colori; non agisce su testo, path e SVG monocromatici). Si può anche trascinare un SVG o un PNG sulla pagina.
 
-Come funziona: la silhouette viene disegnata su un canvas, ritagliata e centrata; si calcola la trasformata di distanza esatta (Felzenszwalb–Huttenlocher) dentro e fuori, corretta sul bordo con la copertura anti-aliasata del pixel, ottenendo un campo di distanza con segno a 384×384 caricato come texture half-float. Lo shader la legge come campo 2D, la estrude in profondità con bordi arrotondati e le applica le stesse onde e increspature delle altre forme. Due texture si alternano, quindi anche il passaggio da una forma esterna all'altra è una transizione fluida.
+Cosa funziona meglio: glifi e icone con una silhouette riconoscibile (★ ⚡ 🚀 🔍 📄 💬 ❤, icone a linea tipo Lucide/Feather, loghi). Le emoji che sono dischi colorati (😄 🧠 🌍) si riconoscono grazie all'incisione dei dettagli scuri, ma restano meno leggibili di una silhouette.
+
+Come funziona: la silhouette viene disegnata su un canvas, ritagliata e centrata; a risoluzione 768×768 si calcola la trasformata di distanza esatta (Felzenszwalb–Huttenlocher) dentro e fuori, corretta sul bordo con la copertura anti-aliasata del pixel; il campo viene ridotto a 384×384 con media e una sfocatura leggera (che toglie la scalettatura dei texel senza spostare il bordo e mantiene il campo 1-Lipschitz) e caricato come texture half-float a due canali: distanza con segno e scurezza relativa alla luminanza media della silhouette. Lo shader legge il campo 2D, lo estrude in profondità con bordi arrotondati, arretra la faccia frontale dove l'immagine è scura e applica le stesse onde e increspature delle altre forme. Due texture si alternano, quindi anche il passaggio da una forma esterna all'altra è una transizione fluida.
 
 Le sorgenti testuali (emoji, path, SVG) restano salvate nel browser e vengono ricaricate all'apertura; le immagini da file no.
 
@@ -102,7 +104,71 @@ sigmaBrain.stopSequence();
 sigmaBrain.sequence;   // { index, length, loop, interval } oppure null
 ```
 
-Ogni voce accetta le stesse sorgenti di `setShape` (emoji, testo, path, SVG, immagine); `options.shape` passa spessore e arrotondamento a tutte le voci.
+Ogni voce accetta le stesse sorgenti di `setShape` (emoji, testo, path, SVG, immagine) oppure l'id di una capability (`'web'`, `'chat'`, …), così una sequenza può alternare forme matematiche e forme esterne.
+
+## Vocabolario di stati
+
+Il livello pensato per l'app: uno **stato** è un nome (`searching`, `answering`, …) che raggruppa forma o sequenza, colore, parametri ed etichetta. Dall'app si chiama solo `sigmaBrain.state('searching')`; tutta la coreografia sta in un JSON.
+
+Il vocabolario di default è nel blocco `<script type="application/json" id="states-json">` della pagina (modificabile senza toccare il codice) e comprende `idle`, `thinking`, `answering`, `searching`, `reading`, `looking`, `coding`, `greeting`, `error`, `done`. Nel pannello **Parametri → Stati** ci sono i pulsanti per provarli; `#searching` nell'URL apre direttamente in quello stato.
+
+Definizione di uno stato (tutte le chiavi sono facoltative):
+
+| Chiave | Valore |
+|---|---|
+| `capability` | id di una forma matematica: `brain`, `chat`, `web`, `docs`, `images`, `tools` |
+| `shape` | sorgente di forma esterna (emoji, testo, path, SVG, immagine) |
+| `sequence` | lista di sorgenti o id di capability, alternati in ciclo |
+| `spell` | parola scritta lettera per lettera |
+| `interval`, `loop`, `whole` | ritmo e ripetizione di sequenze e parole |
+| `color` | `#rrggbb` (colore fisso), oppure `capability`, `audio`, `none` |
+| `intensity`, `iridescence` | tinta e pellicola iridescente, 0–1 |
+| `size`, `spikes`, `bc`, `density`, `width`, `morph`, `visc`, `spin` | parametri della massa e delle punte |
+| `thickness`, `rounding`, `engrave` | parametri della forma esterna |
+| `studio` | `light` o `dark` |
+| `label` | testo mostrato accanto al pallino colorato in alto a sinistra |
+
+Se `spell`, `sequence`, `shape` e `capability` sono presenti insieme, vale il primo in quest'ordine. I parametri di uno stato sono sovrapposizioni ai valori base: lo stato successivo (o `state(null)`) li annulla, e il salvataggio nel browser conserva sempre i valori base.
+
+```js
+sigmaBrain.state('searching');
+sigmaBrain.define('celebrating', { spell: 'WOW', color: '#ffd400', iridescence: 0.6, label: 'Evviva' });
+sigmaBrain.defineStates({ ... });          // più stati in una volta
+await sigmaBrain.loadStates('/states.json'); // da un file JSON
+sigmaBrain.state(null);                      // annulla lo stato attivo
+sigmaBrain.currentState;                     // 'searching' | null
+sigmaBrain.states;                           // copia del vocabolario
+```
+
+## Configurazione: prova, salva, esporta
+
+Il flusso di lavoro pensato per chi integra: si regola tutto dall'interfaccia, si salva ogni combinazione come stato, si esporta un JSON e lo si dà alla pagina che renderizza.
+
+1. Regola forma, colore e parametri dal pannello.
+2. In **Parametri → Configurazione** scrivi un nome (per esempio `searching`) e premi **Salva stato**: la situazione corrente (forma o sequenza in corso, colore, tutti i parametri) diventa una definizione di stato.
+3. Ripeti per ogni stato. **Elimina stato attivo** toglie quello selezionato.
+4. **Esporta JSON** scarica `sigma-brain.config.json`; **Copia JSON** lo mette negli appunti; **Importa…** ricarica un file esportato.
+
+Il JSON contiene `settings` (i valori base di tutti i parametri), `capability` e `shape` correnti, lo `state` attivo e `states` (il vocabolario). Per caricarlo nella pagina:
+
+```js
+sigmaBrain.importConfig(json);                 // oggetto o URL di un file JSON
+sigmaBrain.exportConfig();                     // → oggetto
+sigmaBrain.saveState('searching');             // come il pulsante Salva stato
+sigmaBrain.removeState('searching');
+```
+
+```
+index.html?config=sigma-brain.config.json      // all'apertura
+```
+
+```js
+// da una pagina che la incorpora
+w.postMessage({ type: 'sigmabrain:config', config: json }, '*');
+w.postMessage({ type: 'sigmabrain:export' }, '*');   // risponde con { type: 'sigmabrain:config', config }
+```
+
+Le forme da file immagine finiscono nell'export come data URI (fino a 400 KB); SVG e path come testo.
 
 ## Colore
 
@@ -173,6 +239,11 @@ La pagina espone `window.sigmaBrain` (alias `window.ferrofluido`, mantenuto per 
 | `spell(word, options?)` | `→ boolean` | scrive una parola lettera per lettera, poi la parola intera. `options`: `{ interval?: secondi (default 1,5), whole?: boolean (default true), loop?: boolean (default false), shape? }` |
 | `stopSequence()` | | ferma la sequenza in corso |
 | `sequence` | `object \| null` (sola lettura) | `{ index, length, loop, interval }` della sequenza in corso |
+| `state(name \| null)` | `→ boolean` | applica uno stato del vocabolario, o annulla quello attivo |
+| `define(name, def)`, `defineStates(obj)`, `loadStates(url \| obj)` | | definisce stati (vedi [Vocabolario di stati](#vocabolario-di-stati)) |
+| `removeState(name)`, `saveState(name)` | `→ boolean` | elimina uno stato; salva la situazione corrente come stato |
+| `states`, `currentState` | (sola lettura) | copia del vocabolario; nome dello stato attivo o `null` |
+| `exportConfig()`, `importConfig(obj \| url)` | | esporta e importa la configurazione completa (vedi [Configurazione](#configurazione-prova-salva-esporta)) |
 
 Esempi:
 
@@ -211,6 +282,9 @@ w.postMessage({ type: 'sigmabrain:shape', source: { svg: svgMarkup, name: 'logo'
 w.postMessage({ type: 'sigmabrain:spell', word: 'SIGMA', options: { interval: 1.2 } }, '*');
 w.postMessage({ type: 'sigmabrain:sequence', items: ['🔍', '📄', '💬'], options: { interval: 2 } }, '*');
 w.postMessage({ type: 'sigmabrain:stop' }, '*');
+w.postMessage({ type: 'sigmabrain:state', name: 'searching' }, '*');
+w.postMessage({ type: 'sigmabrain:define', name: 'celebrating', definition: { spell: 'WOW' } }, '*');
+w.postMessage({ type: 'sigmabrain:define', states: { ... } }, '*');
 ```
 
 Per `postMessage` la sorgente deve essere serializzabile: testo, path, markup SVG, URL o data URI; un `File` o `Blob` va passato direttamente a `setShape` dalla stessa pagina.

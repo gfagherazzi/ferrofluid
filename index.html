@@ -306,6 +306,9 @@ input[type="range"]::-moz-range-thumb {
 }
 .chips button:hover { background: var(--well); }
 .group > .help { margin: 0; font-size: 11.5px; color: var(--ink-3); line-height: 1.4; }
+.help code { font-family: var(--font-mono); font-size: 10.5px; }
+#state-chips button { font-family: var(--font-mono); font-size: 12px; }
+.chips button[aria-pressed="true"] { background: var(--ink); color: var(--on-ink); border-color: var(--ink); }
 input[type="color"] {
   -webkit-appearance: none; appearance: none;
   width: 48px; height: 30px; padding: 2px;
@@ -424,6 +427,26 @@ input[type="color"]::-moz-color-swatch { border: 0; border-radius: 5px; }
 </section>
 
 <aside class="params chrome" id="params" aria-label="Parametri" hidden>
+  <div class="group" id="group-states">
+    <h2>Stati</h2>
+    <div class="chips" id="state-chips" aria-label="Stati del vocabolario"></div>
+    <p class="help">Vocabolario configurabile: forma, colore e ritmo per ogni attività dell'assistente. Dall'app: <code>sigmaBrain.state('searching')</code>. Le definizioni sono nel blocco <code>#states-json</code> della pagina, oppure via <code>define()</code> e <code>loadStates()</code>.</p>
+  </div>
+  <div class="group" id="group-config">
+    <h2>Configurazione</h2>
+    <div class="row-inline fields">
+      <input type="text" class="text-input" id="state-name" placeholder="nome del nuovo stato, es. searching" autocomplete="off" spellcheck="false">
+      <button type="button" class="transport" id="state-save">Salva stato</button>
+    </div>
+    <div class="chips">
+      <button type="button" id="cfg-export">Esporta JSON</button>
+      <button type="button" id="cfg-copy">Copia JSON</button>
+      <button type="button" id="cfg-import">Importa…</button>
+      <button type="button" id="cfg-remove">Elimina stato attivo</button>
+    </div>
+    <input type="file" id="cfg-input" accept="application/json,.json" hidden>
+    <p class="help">Regola i parametri, salva la combinazione come stato, poi esporta il JSON. L'app lo passa alla pagina con <code>sigmaBrain.importConfig(json)</code>, con <code>postMessage</code> oppure con <code>index.html?config=url</code>.</p>
+  </div>
   <div class="group" id="group-motion">
     <h2>Massa</h2>
   </div>
@@ -506,6 +529,24 @@ input[type="color"]::-moz-color-swatch { border: 0; border-radius: 5px; }
 <div class="drop" id="drop" hidden>RILASCIA UN FILE AUDIO O UNA FORMA (SVG, PNG)</div>
 <div class="fatal" id="fatal" hidden><div><strong>WEBGL2 NON DISPONIBILE</strong><span id="fatal-msg"></span><pre id="fatal-log"></pre></div></div>
 
+<!-- Vocabolario di stati: modificabile qui, oppure sostituibile dall'app con sigmaBrain.loadStates(url).
+     Chiavi: capability | shape | sequence | spell, interval, loop, whole, color (#hex | capability | audio | none),
+     intensity, iridescence, size, spikes, bc, density, width, morph, visc, spin, thickness, rounding, studio, label -->
+<script type="application/json" id="states-json">
+{
+  "idle":      { "capability": "brain",  "color": "capability", "label": "In ascolto" },
+  "thinking":  { "capability": "brain",  "color": "#8b5cf6", "spikes": 0.35, "bc": 0.2, "label": "Sto pensando" },
+  "answering": { "capability": "chat",   "label": "Rispondo" },
+  "searching": { "sequence": ["🔍", "web"], "interval": 2, "color": "#2f7cff", "label": "Cerco sul web" },
+  "reading":   { "sequence": ["docs", "📄"], "interval": 2.2, "color": "#f2a93b", "label": "Leggo i documenti" },
+  "looking":   { "capability": "images", "label": "Guardo le immagini" },
+  "coding":    { "sequence": ["tools", "{ }", "</>"], "interval": 1.8, "color": "#ff7a1a", "label": "Scrivo codice" },
+  "greeting":  { "spell": "CIAO", "color": "#2fd3a6", "label": "Ciao!" },
+  "error":     { "shape": "!", "color": "#ff3b5c", "intensity": 1, "spikes": 0.6, "bc": 0.15, "label": "Qualcosa è andato storto" },
+  "done":      { "shape": "✓", "color": "#2fd3a6", "label": "Fatto" }
+}
+</script>
+
 <script id="frag" type="x-shader/x-fragment">#version 300 es
 precision highp float;
 precision highp int;
@@ -546,6 +587,7 @@ uniform sampler2D uShape0;
 uniform sampler2D uShape1;
 uniform float uShapeThick;
 uniform float uShapeRound;
+uniform float uShapeEngrave;
 
 const float PI  = 3.14159265359;
 const float PHI = 1.61803398875;
@@ -692,19 +734,25 @@ float sdGear(vec3 p) {
 // immagine), estruso in profondità con bordi arrotondati. La texture copre il quadrato [-1.1, 1.1]²
 // in unità mondo; fuori dal quadrato si somma la distanza dal quadrato stesso.
 const float SHAPE_HALF = 1.1;
-float customField(sampler2D tex, vec2 xy) {
+// .x distanza con segno, .y "scurezza" relativa dell'immagine (0 = chiaro, 1 = scuro) per l'incisione
+vec2 customField(sampler2D tex, vec2 xy) {
   vec2 uv = clamp(xy / (2.0 * SHAPE_HALF) + 0.5, 0.0, 1.0);
-  float d = textureLod(tex, vec2(uv.x, 1.0 - uv.y), 0.0).r;
+  vec2 s = textureLod(tex, vec2(uv.x, 1.0 - uv.y), 0.0).rg;
   vec2 q = abs(xy) - SHAPE_HALF;
-  return d + length(max(q, 0.0));
+  s.x += length(max(q, 0.0));
+  return s;
 }
 float sdCustom(vec3 p, int slot) {
   p.yz = rot2(0.12) * p.yz;
   p.xz = rot2(-0.18 + 0.06 * sin(uTime * 0.6)) * p.xz;
-  float d2 = slot == 0 ? customField(uShape0, p.xy) : customField(uShape1, p.xy);
-  float r = uShapeRound;
-  vec2 w = vec2(d2 + r, abs(p.z) - (uShapeThick - r));
-  return min(max(w.x, w.y), 0.0) + length(max(w, 0.0)) - r;
+  vec2 f = slot == 0 ? customField(uShape0, p.xy) : customField(uShape1, p.xy);
+  // incisione: la faccia frontale arretra dove l'immagine è più scura, la posteriore resta ferma
+  float e = uShapeEngrave * f.y;
+  float r = min(uShapeRound, max(uShapeThick - e, 0.02));
+  vec2 w = vec2(f.x + r, abs(p.z + 0.5 * e) - (uShapeThick - r - 0.5 * e));
+  float d = min(max(w.x, w.y), 0.0) + length(max(w, 0.0)) - r;
+  // con l'incisione il campo non è più una distanza esatta: passo ridotto per sicurezza
+  return uShapeEngrave > 0.0 ? d * 0.6 : d;
 }
 
 float shapeD(int id, vec3 p) {
@@ -917,7 +965,7 @@ void main() {
     spikes: 0, bc: 0.35, density: 200, width: 0.9,
     studio: 'light', quality: 'auto', size: 1,
     colorMode: 'capability', color: '#2f7cff', tintAmt: 0.8, irid: 0,
-    shapeThick: 0.22, shapeRound: 0.6, shapeSrc: 'Σ',
+    shapeThick: 0.22, shapeRound: 0.6, shapeEngrave: 0.045, shapeSrc: 'Σ',
   };
   const CAP_COLORS = { brain: '#8d97a8', chat: '#ff3b5c', web: '#2f7cff', docs: '#f2a93b', images: '#2fd3a6', tools: '#ff7a1a', custom: '#8b5cf6' };
   const STORE_KEY = 'sigmabrain.v1';
@@ -926,7 +974,8 @@ void main() {
   let saveTimer = 0;
   const save = () => {
     clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => { try { localStorage.setItem(STORE_KEY, JSON.stringify(S)); } catch (e) { /* ignora */ } }, 300);
+    // si salvano i valori base, non le sovrapposizioni di uno stato del vocabolario
+    saveTimer = setTimeout(() => { try { localStorage.setItem(STORE_KEY, JSON.stringify({ ...S, ...stateBackup })); } catch (e) { /* ignora */ } }, 300);
   };
 
   const pct = (v) => Math.round(v * 100) + '%';
@@ -944,6 +993,7 @@ void main() {
     { id: 'irid', group: 'group-color', label: 'Iridescenza', min: 0, max: 1, step: 0.01, fmt: pct, help: 'Pellicola sottile: il colore dei riflessi cambia con l\'angolo di vista.' },
     { id: 'shapeThick', group: 'group-shape', label: 'Spessore', min: 0.06, max: 0.5, step: 0.01, fmt: (v) => v.toFixed(2) },
     { id: 'shapeRound', group: 'group-shape', label: 'Arrotondamento', min: 0, max: 1, step: 0.01, fmt: pct, help: 'Quanto i bordi si gonfiano; limitato dallo spessore dei tratti più sottili.' },
+    { id: 'shapeEngrave', group: 'group-shape', label: 'Incisione', min: 0, max: 0.08, step: 0.001, fmt: (v) => Math.round(v / 0.08 * 100) + '%', help: 'Le zone più scure dell\'immagine (dettagli di emoji e loghi a colori) vengono incise sulla faccia frontale. Non agisce su testo, path e SVG monocromatici.' },
   ];
 
   const inputs = {};
@@ -961,7 +1011,7 @@ void main() {
       out.textContent = p.fmt(S[p.id]);
       input.style.setProperty('--fill', ((S[p.id] - p.min) / (p.max - p.min) * 100) + '%');
     };
-    input.addEventListener('input', () => { S[p.id] = parseFloat(input.value); paint(); save(); onParam(p.id); });
+    input.addEventListener('input', () => { S[p.id] = parseFloat(input.value); delete stateBackup[p.id]; paint(); save(); onParam(p.id); });
     inputs[p.id] = { input, paint, p };
   }
   function syncControls() {
@@ -1066,7 +1116,7 @@ void main() {
   const UNIFORMS = ['uRes', 'uCenter', 'uScaleRef', 'uTanHalf', 'uCamDist', 'uTime', 'uRot', 'uCoreR', 'uSat', 'uSatR',
     'uK', 'uDent', 'uDentR', 'uNoiseAmp', 'uRippleAmp', 'uBound', 'uSpike', 'uSpikeN', 'uSpikeW', 'uBands', 'uDark',
     'uShapeA', 'uShapeB', 'uMix', 'uBass', 'uOpen', 'uGear', 'uTint', 'uTintAmt', 'uIrid', 'uGlow',
-    'uShape0', 'uShape1', 'uShapeThick', 'uShapeRound'];
+    'uShape0', 'uShape1', 'uShapeThick', 'uShapeRound', 'uShapeEngrave'];
   function buildProgram() {
     prog = gl.createProgram();
     gl.attachShader(prog, compile(gl.VERTEX_SHADER, VERT));
@@ -1418,10 +1468,17 @@ void main() {
   // la transizione interpola due campi di distanza: a e b sono {shape, ext}, t l'avanzamento 0..1
   const morph = { a: { shape: 0, ext: 0 }, b: { shape: 0, ext: 0 }, t: 1 };
   let capNow = 0, autoOn = false, autoTimer = 0, customReady = false;
+  let seq = null;            // sequenza di forme in corso (vedi sotto)
+  let activeState = null;    // stato del vocabolario attivo (vedi sotto)
+  const stateBackup = {};    // valori base sovrascritti dallo stato attivo
+  let STATES = {};           // vocabolario di stati, dal blocco JSON nella pagina
+  try { STATES = JSON.parse($('states-json').textContent) || {}; } catch (e) { STATES = {}; }
 
   function paintCaps() {
     for (const c of CAPS) $('cap-' + c.id).setAttribute('aria-pressed', c === CAPS[capNow]);
-    $('cap-now').textContent = CAPS[capNow].label + ' · ' + CAPS[capNow].desc;
+    const st = activeState && STATES[activeState];
+    $('cap-now').textContent = st && st.label ? st.label : CAPS[capNow].label + ' · ' + CAPS[capNow].desc;
+    paintStates();
   }
   function startMorph(shape, ext, instant) {
     morph.a = morph.t > 0.5 ? morph.b : morph.a;
@@ -1432,7 +1489,7 @@ void main() {
     const i = typeof name === 'number' ? name : CAPS.findIndex((c) => c.id === name);
     if (i < 0 || i >= CAPS.length || i === capNow) return false;
     if (CAPS[i] === CUSTOM && !customReady) return false;
-    stopSequence();
+    if (!opts._seq) { stopSequence(); activeState = null; }
     startMorph(CAPS[i].shape, CAPS[i].ext, opts.instant);
     capNow = i;
     paintCaps();
@@ -1473,6 +1530,10 @@ void main() {
     if (d.type === 'sigmabrain:sequence' && d.items != null) playSequence(d.items, d.options || {});
     if (d.type === 'sigmabrain:spell' && typeof d.word === 'string') spell(d.word, d.options || {});
     if (d.type === 'sigmabrain:stop') { stopSequence(); stopAuto(); }
+    if (d.type === 'sigmabrain:state') applyState(d.name == null ? null : String(d.name));
+    if (d.type === 'sigmabrain:define') { if (d.states) defineStates(d.states); else if (d.name) defineState(d.name, d.definition); }
+    if (d.type === 'sigmabrain:config' && d.config != null) importConfig(d.config).catch(() => {});
+    if (d.type === 'sigmabrain:export' && e.source && e.source.postMessage) e.source.postMessage({ type: 'sigmabrain:config', config: exportConfig() }, '*');
   });
   window.sigmaBrain = {
     capabilities: CAPS.map((c) => c.id),
@@ -1492,6 +1553,16 @@ void main() {
     spell: (word, options) => spell(word, options || {}),
     stopSequence,
     get sequence() { return seq ? { index: seq.i, length: seq.list.length, loop: seq.loop, interval: seq.interval } : null; },
+    state: (name) => applyState(name == null ? null : String(name)),
+    define: (name, definition) => defineState(name, definition),
+    defineStates: (states) => defineStates(states),
+    loadStates: (src) => loadStates(src),
+    get states() { return JSON.parse(JSON.stringify(STATES)); },
+    get currentState() { return activeState; },
+    removeState: (name) => removeState(String(name)),
+    saveState: (name) => { const n = String(name || '').trim(); if (!n) return false; defineState(n, snapshotState(n)); activeState = n; paintCaps(); return true; },
+    exportConfig: () => exportConfig(),
+    importConfig: (cfg) => importConfig(cfg),
   };
   window.ferrofluido = window.sigmaBrain; // alias storico
   window.addEventListener('message', (e) => {
@@ -1502,18 +1573,20 @@ void main() {
   });
 
   // ---------- forma esterna: silhouette → campo di distanza 2D → texture ----------
-  const SHAPE_N = 384, SHAPE_HALF = 1.1, SHAPE_FIT = 0.84, TEMP = 1024;
-  const shapeTex = [null, null], shapeData = [null, null], shapeInfo = [{ maxInside: 0.2 }, { maxInside: 0.2 }];
+  // SHAPE_N: lato della texture; HI: risoluzione a cui si calcola il campo (2×), poi ridotta con media
+  const SHAPE_N = 384, HI = 768, SHAPE_HALF = 1.1, SHAPE_FIT = 0.84, TEMP = 1024;
+  const shapeTex = [null, null], shapeData = [null, null], shapeInfo = [{ maxInside: 0.2, hasDark: false }, { maxInside: 0.2, hasDark: false }];
   let shapeSlot = 0;
 
-  // texture R16F: filtrabile in WebGL2 senza estensioni, precisione ~0.0003 contro 0.004 di un byte
+  // texture RG16F (distanza, scurezza): filtrabile in WebGL2 senza estensioni, precisione ~0.0003
   function initShapeTextures() {
-    const empty = new Float32Array(SHAPE_N * SHAPE_N).fill(1);
+    const empty = new Float32Array(SHAPE_N * SHAPE_N * 2);
+    for (let i = 0; i < empty.length; i += 2) empty[i] = 1;
     for (let i = 0; i < 2; i++) {
       shapeTex[i] = gl.createTexture();
       gl.activeTexture(gl.TEXTURE0 + i);
       gl.bindTexture(gl.TEXTURE_2D, shapeTex[i]);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.R16F, SHAPE_N, SHAPE_N, 0, gl.RED, gl.FLOAT, shapeData[i] || empty);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RG16F, SHAPE_N, SHAPE_N, 0, gl.RG, gl.FLOAT, shapeData[i] || empty);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
@@ -1526,7 +1599,7 @@ void main() {
   function uploadShape(slot) {
     gl.activeTexture(gl.TEXTURE0 + slot);
     gl.bindTexture(gl.TEXTURE_2D, shapeTex[slot]);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.R16F, SHAPE_N, SHAPE_N, 0, gl.RED, gl.FLOAT, shapeData[slot]);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RG16F, SHAPE_N, SHAPE_N, 0, gl.RG, gl.FLOAT, shapeData[slot]);
   }
   initShapeTextures();
 
@@ -1558,21 +1631,52 @@ void main() {
     }
     return f;
   }
-  // campo con segno in unità mondo; sul bordo la distanza viene dalla copertura anti-aliasata
-  // del pixel (precisione sub-texel), lontano dal bordo dalla trasformata esatta
-  function buildField(mask, cov) {
-    const n = SHAPE_N, texel = 2 * SHAPE_HALF / n;
+  function down2(src, n) {
+    const m = n / 2, out = new Float32Array(m * m);
+    for (let y = 0; y < m; y++) for (let x = 0; x < m; x++) {
+      const i = 2 * y * n + 2 * x;
+      out[y * m + x] = 0.25 * (src[i] + src[i + 1] + src[i + n] + src[i + n + 1]);
+    }
+    return out;
+  }
+  // sfocatura separabile [1 2 1]/4 con bordi replicati: su un campo di distanza resta 1-Lipschitz
+  function blur3(src, n) {
+    const tmp = new Float32Array(n * n), out = new Float32Array(n * n);
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+      const r = y * n;
+      tmp[r + x] = 0.25 * (src[r + Math.max(x - 1, 0)] + 2 * src[r + x] + src[r + Math.min(x + 1, n - 1)]);
+    }
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+      out[y * n + x] = 0.25 * (tmp[Math.max(y - 1, 0) * n + x] + 2 * tmp[y * n + x] + tmp[Math.min(y + 1, n - 1) * n + x]);
+    }
+    return out;
+  }
+  // campo con segno in unità mondo, calcolato a risoluzione doppia: sul bordo la distanza viene dalla
+  // copertura anti-aliasata (precisione sub-texel), lontano dal bordo dalla trasformata esatta; la
+  // riduzione con media e una sfocatura leggera tolgono la scalettatura dei texel, che altrimenti si
+  // vede come righe sulle pareti dell'estrusione. Nel canale .y la scurezza relativa per l'incisione.
+  function buildField(fit) {
+    const n = HI, N = SHAPE_N, texel = 2 * SHAPE_HALF / n;
+    const mask = new Uint8Array(n * n);
+    for (let i = 0; i < n * n; i++) mask[i] = fit.cov[i] >= 0.5 ? 1 : 0;
     const dOut = edt(mask, n, 1), dIn = edt(mask, n, 0);
-    const out = new Float32Array(n * n);
-    let maxInside = 0;
+    const hi = new Float32Array(n * n);
     for (let i = 0; i < n * n; i++) {
       const db = mask[i] ? -(Math.sqrt(dIn[i]) - 0.5) : Math.sqrt(dOut[i]) - 0.5;
       const w = clamp(1.5 - Math.abs(db), 0, 1);
-      const d = (db + ((0.5 - cov[i]) - db) * w) * texel;
-      if (-d > maxInside) maxInside = -d;
-      out[i] = d;
+      hi[i] = (db + ((0.5 - fit.cov[i]) - db) * w) * texel;
     }
-    return { data: out, maxInside };
+    const dist = blur3(down2(hi, n), N);
+    const dark = blur3(blur3(blur3(blur3(down2(fit.dark, n), N), N), N), N);
+    const cov = down2(fit.cov, n);
+    const out = new Float32Array(N * N * 2);
+    let maxInside = 0;
+    for (let i = 0; i < N * N; i++) {
+      out[2 * i] = dist[i];
+      out[2 * i + 1] = dark[i] * clamp((cov[i] - 0.3) / 0.4, 0, 1);
+      if (-dist[i] > maxInside) maxInside = -dist[i];
+    }
+    return { data: out, maxInside, hasDark: fit.hasDark };
   }
 
   // copertura 0..1 di un pixel: alpha, oppure luminanza con soglia morbida per immagini opache
@@ -1594,7 +1698,7 @@ void main() {
     }
     if (x1 < 0) return null;
     const bw = x1 - x0 + 1, bh = y1 - y0 + 1;
-    const n = SHAPE_N, scale = SHAPE_FIT * n / Math.max(bw, bh);
+    const n = HI, scale = SHAPE_FIT * n / Math.max(bw, bh);
     const dw = bw * scale, dh = bh * scale, dx = (n - dw) / 2, dy = (n - dh) / 2;
     const c = document.createElement('canvas');
     c.width = n; c.height = n;
@@ -1602,12 +1706,22 @@ void main() {
     ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(temp, x0, y0, bw, bh, dx, dy, dw, dh);
     const px = ctx.getImageData(0, 0, n, n).data;
-    const mask = new Uint8Array(n * n), cov = new Float32Array(n * n);
+    const cov = new Float32Array(n * n), lum = new Float32Array(n * n);
+    let sumL = 0, cnt = 0;
     for (let i = 0; i < n * n; i++) {
       cov[i] = coverage(px, i * 4, mode, invert);
-      mask[i] = cov[i] >= 0.5 ? 1 : 0;
+      lum[i] = (0.299 * px[i * 4] + 0.587 * px[i * 4 + 1] + 0.114 * px[i * 4 + 2]) / 255;
+      if (cov[i] >= 0.5) { sumL += lum[i]; cnt++; }
     }
-    return { mask, cov, halfW: dw / n * SHAPE_HALF, halfH: dh / n * SHAPE_HALF };
+    // scurezza relativa alla luminanza media della silhouette: un glifo nero uniforme non incide nulla
+    const meanL = cnt ? sumL / cnt : 0;
+    const dark = new Float32Array(n * n);
+    let maxDark = 0;
+    for (let i = 0; i < n * n; i++) {
+      dark[i] = cov[i] >= 0.5 ? clamp((meanL - lum[i]) * 2.5, 0, 1) : 0;
+      if (dark[i] > maxDark) maxDark = dark[i];
+    }
+    return { cov, dark, hasDark: maxDark > 0.15, halfW: dw / n * SHAPE_HALF, halfH: dh / n * SHAPE_HALF };
   }
 
   const loadImage = (src) => new Promise((ok, err) => {
@@ -1711,14 +1825,16 @@ void main() {
   }
 
   function persistable(source) {
-    if (typeof source === 'string') return source.length < 20000 ? source : null;
+    if (typeof source === 'string') return source.length < 600000 ? source : null;
     if (!source || typeof source !== 'object') return null;
-    if (!(source.text || source.path || source.svg)) return null;
-    const keep = { text: source.text, path: source.path, svg: source.svg, viewBox: source.viewBox, fillRule: source.fillRule, name: source.name };
-    return JSON.stringify(keep).length < 30000 ? keep : null;
+    const keep = {};
+    for (const k of ['text', 'path', 'svg', 'viewBox', 'fillRule', 'name', 'invert']) if (source[k] != null) keep[k] = source[k];
+    if (typeof source.image === 'string') keep.image = source.image;
+    if (!(keep.text || keep.path || keep.svg || keep.image)) return null;
+    return JSON.stringify(keep).length < 600000 ? keep : null;
   }
   async function setShape(source, opts = {}) {
-    if (!opts._seq) stopSequence();
+    if (!opts._seq) { stopSequence(); activeState = null; }
     let fit, name;
     try {
       const ras = await rasterize(source);
@@ -1732,10 +1848,10 @@ void main() {
       if (!opts.silent) setStatus(msg, true, 9000);
       return false;
     }
-    const field = buildField(fit.mask, fit.cov);
+    const field = buildField(fit);
     shapeSlot = 1 - shapeSlot;
     shapeData[shapeSlot] = field.data;
-    shapeInfo[shapeSlot] = { maxInside: field.maxInside };
+    shapeInfo[shapeSlot] = { maxInside: field.maxInside, hasDark: field.hasDark };
     uploadShape(shapeSlot);
     CUSTOM.shape = 6 + shapeSlot;
     CUSTOM.ext = Math.hypot(fit.halfW, fit.halfH) + 0.55;
@@ -1745,6 +1861,12 @@ void main() {
     if (typeof opts.rounding === 'number') setParam('shapeRound', opts.rounding);
     const keep = persistable(source);
     if (keep) { S.shapeSrc = keep; save(); }
+    else if (source && source.image instanceof Blob && source.image.size < 400000) {
+      // immagine da file: la si conserva come data URI così entra nell'export e si ricarica all'apertura
+      const fr = new FileReader();
+      fr.onload = () => { S.shapeSrc = { image: fr.result, name, invert: source.invert }; save(); };
+      fr.readAsDataURL(source.image);
+    }
     const customIdx = CAPS.indexOf(CUSTOM);
     if (opts.activate !== false) {
       stopAuto();
@@ -1782,15 +1904,17 @@ void main() {
   $('shape-input').addEventListener('change', (e) => { shapeFromFile(e.target.files[0]); e.target.value = ''; });
 
   // ---------- sequenze di forme e parole ----------
-  // il ritmo segue il tempo dell'animazione (dt), così ogni transizione finisce prima della successiva
-  let seq = null;
+  // il ritmo segue il tempo dell'animazione (dt), così ogni transizione finisce prima della successiva;
+  // una voce può essere una sorgente di forma o l'id di una capability ('web', 'chat', ...)
   function paintSeq() { $('seq-run').textContent = seq ? 'Ferma' : 'Avvia'; }
   function stopSequence() { if (seq) { seq = null; paintSeq(); } }
   async function seqStep() {
     const s = seq;
     if (!s) return;
     s.waiting = false;
-    await setShape(s.list[s.i], { ...s.shapeOpts, silent: true, _seq: true });
+    const item = s.list[s.i];
+    if (typeof item === 'string' && CAPS.some((c) => c.id === item && c !== CUSTOM)) setCapability(item, { _seq: true });
+    else await setShape(item, { ...s.shapeOpts, silent: true, _seq: true });
     if (seq !== s) return;
     s.i++;
     if (s.i >= s.list.length) {
@@ -1829,8 +1953,208 @@ void main() {
   };
   $('seq-text').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); if (!seq) $('seq-run').click(); } });
 
+  // ---------- vocabolario di stati ----------
+  // ogni stato è un JSON: forma o capability, sequenza o parola, colore, parametri, etichetta.
+  // I parametri di uno stato sono sovrapposizioni ai valori base: lo stato successivo li annulla.
+  const STATE_ALIASES = { intensity: 'tintAmt', iridescence: 'irid', thickness: 'shapeThick', rounding: 'shapeRound', engrave: 'shapeEngrave' };
+  const STATE_PARAMS = new Set(['size', 'sens', 'morph', 'visc', 'spin', 'spikes', 'bc', 'density', 'width', 'tintAmt', 'irid', 'shapeThick', 'shapeRound', 'shapeEngrave']);
+
+  function restoreOverrides() {
+    for (const k in stateBackup) { S[k] = stateBackup[k]; delete stateBackup[k]; }
+  }
+  function applyOverride(k, v) {
+    if (!(k in stateBackup)) stateBackup[k] = S[k];
+    S[k] = v;
+  }
+  function defineState(name, def) {
+    if (typeof name !== 'string' || !name.trim() || !def || typeof def !== 'object') return false;
+    STATES[name.trim()] = { ...def };
+    paintStates();
+    return true;
+  }
+  function defineStates(obj) {
+    if (!obj || typeof obj !== 'object') return false;
+    for (const k in obj) defineState(k, obj[k]);
+    return true;
+  }
+  function removeState(name) {
+    if (!(name in STATES)) return false;
+    delete STATES[name];
+    if (activeState === name) applyState(null);
+    paintStates();
+    return true;
+  }
+  // fotografa la situazione corrente (forma o sequenza, colore, parametri) come definizione di stato
+  function snapshotState(label) {
+    const def = {};
+    if (seq) { def.sequence = seq.list.filter((x) => typeof x === 'string'); def.interval = seq.interval; def.loop = seq.loop; }
+    else if (CAPS[capNow] === CUSTOM) { if (S.shapeSrc) def.shape = S.shapeSrc; }
+    else def.capability = CAPS[capNow].id;
+    def.color = S.colorMode === 'fixed' ? S.color : S.colorMode;
+    def.intensity = S.tintAmt; def.iridescence = S.irid;
+    def.size = S.size; def.spikes = S.spikes; def.bc = S.bc; def.density = S.density; def.width = S.width;
+    def.morph = S.morph; def.visc = S.visc; def.spin = S.spin;
+    def.thickness = S.shapeThick; def.rounding = S.shapeRound; def.engrave = S.shapeEngrave;
+    def.studio = S.studio;
+    def.label = label;
+    return def;
+  }
+  async function loadStates(src) {
+    if (typeof src === 'string') {
+      const r = await fetch(src);
+      if (!r.ok) throw new Error('Stati non caricati: HTTP ' + r.status);
+      src = await r.json();
+    }
+    return defineStates(src);
+  }
+  function applyState(name) {
+    if (name == null) {
+      stopSequence(); restoreOverrides(); activeState = null;
+      syncControls(); paintCaps();
+      return true;
+    }
+    const def = STATES[name];
+    if (!def) return false;
+    stopAuto(); stopSequence(); restoreOverrides();
+    for (const key in def) {
+      const k = STATE_ALIASES[key] || key;
+      if (STATE_PARAMS.has(k) && typeof def[key] === 'number') applyOverride(k, clamp(def[key], inputs[k].p.min, inputs[k].p.max));
+    }
+    if (def.studio === 'light' || def.studio === 'dark') applyOverride('studio', def.studio);
+    if (typeof def.color === 'string') {
+      if (/^#[0-9a-f]{6}$/i.test(def.color)) { applyOverride('colorMode', 'fixed'); applyOverride('color', def.color); }
+      else if (COLOR_MODES.includes(def.color)) applyOverride('colorMode', def.color);
+    }
+    syncControls();
+    if (typeof def.spell === 'string') spell(def.spell, { interval: def.interval, loop: def.loop, whole: def.whole });
+    else if (def.sequence != null) playSequence(def.sequence, { interval: def.interval, loop: def.loop });
+    else if (def.shape != null) setShape(def.shape, { silent: true });
+    else if (typeof def.capability === 'string') setCapability(def.capability);
+    activeState = name;
+    paintCaps();
+    return true;
+  }
+  function paintStates() {
+    const box = $('state-chips');
+    const names = Object.keys(STATES);
+    const want = names.join('\n');
+    if (box.dataset.names !== want) {
+      box.dataset.names = want;
+      box.innerHTML = '';
+      for (const n of names) {
+        const b = document.createElement('button');
+        b.type = 'button'; b.dataset.state = n; b.textContent = n;
+        if (STATES[n].label) b.title = STATES[n].label;
+        box.appendChild(b);
+      }
+      const off = document.createElement('button');
+      off.type = 'button'; off.dataset.state = ''; off.textContent = '× nessuno'; off.title = 'Annulla lo stato attivo';
+      box.appendChild(off);
+    }
+    for (const b of box.children) b.setAttribute('aria-pressed', b.dataset.state !== '' && b.dataset.state === activeState);
+  }
+  $('state-chips').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-state]');
+    if (b) applyState(b.dataset.state || null);
+  });
+  paintStates();
+
+  // ---------- configurazione: esporta e importa ----------
+  const SETTING_KEYS = Object.keys(DEFAULTS);
+  function exportConfig() {
+    const settings = { ...S, ...stateBackup };
+    return {
+      sigmaBrain: 1,
+      exported: new Date().toISOString(),
+      settings,
+      capability: CAPS[capNow].id,
+      shape: settings.shapeSrc || null,
+      state: activeState,
+      states: JSON.parse(JSON.stringify(STATES)),
+    };
+  }
+  function sanitizeSettings(src) {
+    const out = {};
+    for (const k of SETTING_KEYS) {
+      if (!(k in src)) continue;
+      const v = src[k];
+      if (inputs[k]) { if (typeof v === 'number' && isFinite(v)) out[k] = clamp(v, inputs[k].p.min, inputs[k].p.max); }
+      else if (k === 'colorMode') { if (COLOR_MODES.includes(v)) out[k] = v; }
+      else if (k === 'studio') { if (v === 'light' || v === 'dark') out[k] = v; }
+      else if (k === 'quality') { if (['auto', 'high', 'medium', 'low'].includes(v)) out[k] = v; }
+      else if (k === 'color') { if (/^#[0-9a-f]{6}$/i.test(v)) out[k] = v; }
+      else if (k === 'shapeSrc') { const keep = persistable(v); if (keep) out[k] = keep; }
+    }
+    return out;
+  }
+  async function importConfig(cfg) {
+    if (typeof cfg === 'string') {
+      const r = await fetch(cfg);
+      if (!r.ok) throw new Error('Configurazione non caricata: HTTP ' + r.status);
+      cfg = await r.json();
+    }
+    if (!cfg || typeof cfg !== 'object') return false;
+    stopSequence(); stopAuto(); restoreOverrides(); activeState = null;
+    if (cfg.settings && typeof cfg.settings === 'object') {
+      Object.assign(S, sanitizeSettings(cfg.settings));
+      syncControls(); resize(); save();
+    }
+    if (cfg.states && typeof cfg.states === 'object') { STATES = {}; defineStates(cfg.states); }
+    if (cfg.shape != null) await setShape(cfg.shape, { activate: false, silent: true });
+    if (cfg.state && STATES[cfg.state]) applyState(cfg.state);
+    else if (typeof cfg.capability === 'string') setCapability(cfg.capability, { instant: !!cfg.instant });
+    paintCaps();
+    return true;
+  }
+  function downloadJson(obj, filename) {
+    const blob = new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+  $('state-save').onclick = () => {
+    const name = $('state-name').value.trim();
+    if (!name) { setStatus('Dai un nome allo stato (per esempio searching).', true, 4000); $('state-name').focus(); return; }
+    defineState(name, snapshotState(name));
+    activeState = name;
+    paintCaps();
+    $('state-name').value = '';
+    setStatus('Stato salvato: ' + name + '. Esporta il JSON per portarlo nell\'app.', false, 5000);
+  };
+  $('state-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('state-save').click(); } });
+  $('cfg-remove').onclick = () => {
+    if (!activeState) { setStatus('Nessuno stato attivo da eliminare.', true, 4000); return; }
+    const n = activeState;
+    removeState(n);
+    setStatus('Stato eliminato: ' + n, false, 3000);
+  };
+  $('cfg-export').onclick = () => {
+    downloadJson(exportConfig(), 'sigma-brain.config.json');
+    setStatus('Configurazione esportata: sigma-brain.config.json', false, 4000);
+  };
+  $('cfg-copy').onclick = () => {
+    const text = JSON.stringify(exportConfig(), null, 2);
+    const done = () => setStatus('JSON copiato negli appunti.', false, 3000);
+    const fail = () => { setStatus('Copia non consentita dal browser: usa Esporta JSON.', true, 5000); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, fail); else fail();
+  };
+  $('cfg-import').onclick = () => $('cfg-input').click();
+  $('cfg-input').addEventListener('change', (e) => {
+    const f = e.target.files[0];
+    e.target.value = '';
+    if (!f) return;
+    f.text().then((t) => importConfig(JSON.parse(t))).then(() => setStatus('Configurazione importata: ' + f.name, false, 4000))
+      .catch(() => setStatus('Il file non è una configurazione valida.', true, 6000));
+  });
+
   // forma iniziale: quella salvata (o la Σ di Sigma); attiva subito solo se l'URL lo chiede
   setShape(S.shapeSrc || 'Σ', { activate: hashCap === 'custom', instant: true, silent: true });
+  if (STATES[hashCap]) applyState(hashCap);
+  // index.html?config=percorso.json carica una configurazione esportata
+  const cfgUrl = new URLSearchParams(location.search).get('config');
+  if (cfgUrl) importConfig(cfgUrl).catch((e) => setStatus((e && e.message) || 'Configurazione non caricata.', true, 8000));
 
   // ---------- colore ----------
   const hexToLin = (hex) => {
@@ -2005,6 +2329,7 @@ void main() {
     const slotInfo = shapeInfo[clamp(morph.b.shape - 6, 0, 1)];
     gl.uniform1f(U.uShapeThick, S.shapeThick);
     gl.uniform1f(U.uShapeRound, Math.min(S.shapeThick * S.shapeRound, 0.45 * slotInfo.maxInside));
+    gl.uniform1f(U.uShapeEngrave, slotInfo.hasDark ? S.shapeEngrave : 0);
     gl.uniform1f(U.uCoreR, coreR);
     gl.uniform3fv(U.uSat, satPos);
     gl.uniform1fv(U.uSatR, satR);
