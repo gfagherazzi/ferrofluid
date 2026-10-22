@@ -87,6 +87,23 @@ Come funziona: la silhouette viene disegnata su un canvas, ritagliata e centrata
 
 Le sorgenti testuali (emoji, path, SVG) restano salvate nel browser e vengono ricaricate all'apertura; le immagini da file no.
 
+### Sequenze e parole
+
+Nello stesso gruppo del pannello, **Parola o sequenza**: una parola (`SIGMA`) viene scritta lettera per lettera e chiusa con la parola intera; più voci separate da virgola (`🔍, 📄, 💬`) si alternano in ciclo finché non si preme **Ferma**, si sceglie un'altra capability o si carica un'altra forma. Il ritmo segue il tempo dell'animazione, quindi ogni transizione finisce prima che parta la successiva.
+
+Via API:
+
+```js
+sigmaBrain.spell('SIGMA');                                   // S, I, G, M, A, poi SIGMA
+sigmaBrain.spell('CIAO', { interval: 1, whole: false });     // solo le lettere
+sigmaBrain.playSequence(['🔍', '📄', '💬'], { interval: 2 }); // in ciclo (loop: true di default)
+sigmaBrain.playSequence('★, Σ, ⚡', { loop: false });         // stringa separata da virgole, una volta sola
+sigmaBrain.stopSequence();
+sigmaBrain.sequence;   // { index, length, loop, interval } oppure null
+```
+
+Ogni voce accetta le stesse sorgenti di `setShape` (emoji, testo, path, SVG, immagine); `options.shape` passa spessore e arrotondamento a tutte le voci.
+
 ## Colore
 
 Sorgente della tinta, nel pannello **Parametri → Colore**:
@@ -152,6 +169,10 @@ La pagina espone `window.sigmaBrain` (alias `window.ferrofluido`, mantenuto per 
 | `setShape(source, options?)` | `→ Promise<boolean>` | carica una forma esterna e (di default) passa allo stato `custom`. `source`: stringa (emoji/testo, path `M…`, markup `<svg…>`, URL o data URI di immagine) oppure oggetto `{ text }`, `{ path, viewBox?, fillRule? }`, `{ svg }`, `{ image: url \| File \| Blob \| HTMLImageElement, invert? }`, tutti con `name?`. `options`: `{ thickness?: 0.06–0.5, rounding?: 0–1, activate?: boolean, instant?: boolean, silent?: boolean }` |
 | `clearShape()` | `→ boolean` | torna allo stato `brain` |
 | `shapeName` | `string \| null` (sola lettura) | nome della forma esterna caricata |
+| `playSequence(items, options?)` | `→ boolean` | alterna una lista di sorgenti (array, o stringa separata da virgole). `options`: `{ interval?: secondi (default 1,8), loop?: boolean (default true), shape?: opzioni di setShape }` |
+| `spell(word, options?)` | `→ boolean` | scrive una parola lettera per lettera, poi la parola intera. `options`: `{ interval?: secondi (default 1,5), whole?: boolean (default true), loop?: boolean (default false), shape? }` |
+| `stopSequence()` | | ferma la sequenza in corso |
+| `sequence` | `object \| null` (sola lettura) | `{ index, length, loop, interval }` della sequenza in corso |
 
 Esempi:
 
@@ -187,6 +208,9 @@ w.postMessage({ type: 'sigmabrain:color', color: '#ff0066' }, '*');
 w.postMessage({ type: 'sigmabrain:colorMode', mode: 'audio' }, '*');
 w.postMessage({ type: 'sigmabrain:shape', source: '🚀', options: { thickness: 0.3 } }, '*');
 w.postMessage({ type: 'sigmabrain:shape', source: { svg: svgMarkup, name: 'logo' } }, '*');
+w.postMessage({ type: 'sigmabrain:spell', word: 'SIGMA', options: { interval: 1.2 } }, '*');
+w.postMessage({ type: 'sigmabrain:sequence', items: ['🔍', '📄', '💬'], options: { interval: 2 } }, '*');
+w.postMessage({ type: 'sigmabrain:stop' }, '*');
 ```
 
 Per `postMessage` la sorgente deve essere serializzabile: testo, path, markup SVG, URL o data URI; un `File` o `Blob` va passato direttamente a `setShape` dalla stessa pagina.

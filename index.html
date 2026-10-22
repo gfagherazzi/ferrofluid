@@ -468,6 +468,14 @@ input[type="color"]::-moz-color-swatch { border: 0; border-radius: 5px; }
       <span class="row-label">File SVG o immagine</span>
       <button type="button" class="transport" id="shape-file">Carica…</button>
     </div>
+    <div class="row">
+      <div class="row-head"><label for="seq-text">Parola o sequenza</label></div>
+      <div class="row-inline fields">
+        <input type="text" class="text-input" id="seq-text" placeholder="SIGMA   oppure   🔍, 📄, 💬" autocomplete="off" spellcheck="false">
+        <button type="button" class="transport" id="seq-run">Avvia</button>
+      </div>
+      <p class="help">Una parola viene scritta lettera per lettera e chiusa con la parola intera; più voci separate da virgola si alternano in ciclo.</p>
+    </div>
     <p class="help">Puoi anche trascinare un SVG o un PNG sulla pagina. Le immagini senza trasparenza vengono lette come silhouette scura su fondo chiaro.</p>
   </div>
   <div class="group" id="group-look">
@@ -1424,6 +1432,7 @@ void main() {
     const i = typeof name === 'number' ? name : CAPS.findIndex((c) => c.id === name);
     if (i < 0 || i >= CAPS.length || i === capNow) return false;
     if (CAPS[i] === CUSTOM && !customReady) return false;
+    stopSequence();
     startMorph(CAPS[i].shape, CAPS[i].ext, opts.instant);
     capNow = i;
     paintCaps();
@@ -1432,6 +1441,7 @@ void main() {
   function stopAuto() { autoOn = false; $('cap-auto').setAttribute('aria-pressed', 'false'); }
   function toggleAuto(force) {
     autoOn = force ?? !autoOn;
+    if (autoOn) stopSequence();
     autoTimer = 0;
     $('cap-auto').setAttribute('aria-pressed', autoOn);
   }
@@ -1460,6 +1470,9 @@ void main() {
     if (!d || typeof d !== 'object') return;
     if (d.type === 'sigmabrain:capability' && typeof d.name === 'string') { stopAuto(); setCapability(d.name); }
     if (d.type === 'sigmabrain:shape' && d.source != null) setShape(d.source, d.options || {});
+    if (d.type === 'sigmabrain:sequence' && d.items != null) playSequence(d.items, d.options || {});
+    if (d.type === 'sigmabrain:spell' && typeof d.word === 'string') spell(d.word, d.options || {});
+    if (d.type === 'sigmabrain:stop') { stopSequence(); stopAuto(); }
   });
   window.sigmaBrain = {
     capabilities: CAPS.map((c) => c.id),
@@ -1475,6 +1488,10 @@ void main() {
     setShape: (source, options) => setShape(source, options || {}),
     clearShape: () => { stopAuto(); return setCapability('brain'); },
     get shapeName() { return customReady ? CUSTOM.desc : null; },
+    playSequence: (items, options) => playSequence(items, options || {}),
+    spell: (word, options) => spell(word, options || {}),
+    stopSequence,
+    get sequence() { return seq ? { index: seq.i, length: seq.list.length, loop: seq.loop, interval: seq.interval } : null; },
   };
   window.ferrofluido = window.sigmaBrain; // alias storico
   window.addEventListener('message', (e) => {
@@ -1701,6 +1718,7 @@ void main() {
     return JSON.stringify(keep).length < 30000 ? keep : null;
   }
   async function setShape(source, opts = {}) {
+    if (!opts._seq) stopSequence();
     let fit, name;
     try {
       const ras = await rasterize(source);
@@ -1762,6 +1780,54 @@ void main() {
   });
   $('shape-file').onclick = () => $('shape-input').click();
   $('shape-input').addEventListener('change', (e) => { shapeFromFile(e.target.files[0]); e.target.value = ''; });
+
+  // ---------- sequenze di forme e parole ----------
+  // il ritmo segue il tempo dell'animazione (dt), così ogni transizione finisce prima della successiva
+  let seq = null;
+  function paintSeq() { $('seq-run').textContent = seq ? 'Ferma' : 'Avvia'; }
+  function stopSequence() { if (seq) { seq = null; paintSeq(); } }
+  async function seqStep() {
+    const s = seq;
+    if (!s) return;
+    s.waiting = false;
+    await setShape(s.list[s.i], { ...s.shapeOpts, silent: true, _seq: true });
+    if (seq !== s) return;
+    s.i++;
+    if (s.i >= s.list.length) {
+      if (!s.loop) { seq = null; paintSeq(); return; }
+      s.i = 0;
+    }
+    s.elapsed = 0;
+    s.waiting = true;
+  }
+  function playSequence(items, opts = {}) {
+    const raw = Array.isArray(items) ? items : String(items).split(',');
+    const list = raw.map((x) => (typeof x === 'string' ? x.trim() : x)).filter((x) => x != null && x !== '');
+    if (!list.length) return false;
+    stopAuto();
+    seq = {
+      list, i: 0, loop: opts.loop !== false, shapeOpts: opts.shape || {},
+      interval: clamp(Number(opts.interval) || 1.8, 0.5, 60), elapsed: 0, waiting: false,
+    };
+    paintSeq();
+    seqStep();
+    return true;
+  }
+  function spell(word, opts = {}) {
+    const text = String(word).trim();
+    const chars = [...text].filter((c) => c.trim());
+    if (!chars.length) return false;
+    const list = chars.slice();
+    if (opts.whole !== false && chars.length > 1 && text.length <= 12) list.push(text);
+    return playSequence(list, { interval: opts.interval || 1.5, loop: opts.loop === true, shape: opts.shape });
+  }
+  $('seq-run').onclick = () => {
+    if (seq) { stopSequence(); return; }
+    const v = $('seq-text').value.trim();
+    if (!v) return;
+    if (v.includes(',')) playSequence(v); else spell(v);
+  };
+  $('seq-text').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); if (!seq) $('seq-run').click(); } });
 
   // forma iniziale: quella salvata (o la Σ di Sigma); attiva subito solo se l'URL lo chiede
   setShape(S.shapeSrc || 'Σ', { activate: hashCap === 'custom', instant: true, silent: true });
@@ -1863,6 +1929,7 @@ void main() {
         setCapability(next);
       }
     }
+    if (seq && seq.waiting) { seq.elapsed += dt; if (seq.elapsed >= seq.interval) seqStep(); }
     if (morph.t < 1) morph.t = Math.min(1, morph.t + dt / TRANSITION);
     const mt = morph.t, mixEase = mt * mt * (3 - 2 * mt), melt = Math.sin(Math.PI * mt);
     const shapeA = morph.a.shape, shapeB = morph.b.shape;
