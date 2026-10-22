@@ -504,6 +504,16 @@ input[type="color"]::-moz-color-swatch { border: 0; border-radius: 5px; }
   <div class="group" id="group-look">
     <h2>Studio</h2>
     <div class="row">
+      <div class="row-head"><label id="lbl-style">Resa</label></div>
+      <div class="seg" role="radiogroup" aria-labelledby="lbl-style">
+        <button type="button" id="st-3d" role="radio" aria-checked="true">3D</button>
+        <button type="button" id="st-flat" role="radio" aria-checked="false">Piatto</button>
+        <button type="button" id="st-toon" role="radio" aria-checked="false">Due toni</button>
+        <button type="button" id="st-outline" role="radio" aria-checked="false">Contorno</button>
+      </div>
+      <p class="help">Le rese 2D usano la stessa forma e la stessa animazione: riempimento piatto con bordo anti-aliasato, due toni con un lato luce, oppure solo il tratto.</p>
+    </div>
+    <div class="row">
       <div class="row-head"><label id="lbl-studio">Fondale</label></div>
       <div class="seg" role="radiogroup" aria-labelledby="lbl-studio">
         <button type="button" id="studio-light" role="radio" aria-checked="true">Chiaro</button>
@@ -591,6 +601,8 @@ uniform float uShapeEngrave;
 uniform float uNormEps;
 uniform float uShapeReact;
 uniform float uLevel;
+uniform int   uStyle;      // 0 lucido 3D, 1 piatto, 2 due toni, 3 solo contorno
+uniform float uOutline;    // spessore del contorno 2D in pixel del buffer
 
 const float PI  = 3.14159265359;
 const float PHI = 1.61803398875;
@@ -896,10 +908,39 @@ vec3 background(vec2 fc) {
   return mix(light, dark, uDark);
 }
 
-vec3 shade(vec3 p, vec3 rd, float px) {
+// Resa 2D: riempimento piatto (nero su chiaro, bianco su scuro, oppure la tinta), con due toni a scelta
+vec3 shade(vec3 p, vec3 rd, vec3 n);
+vec3 flatFill() {
+  vec3 ink = mix(vec3(0.02), vec3(0.92), uDark);
+  return mix(ink, uTint * 0.9 + 0.02, uTintAmt);
+}
+// due toni: lato luce e lato ombra con transizione netta ma anti-aliasata; iridescenza come tinta che segue la normale
+vec3 toonShade(vec3 p, vec3 rd, vec3 n) {
+  vec3 fill = flatFill();
+  float l = dot(n, normalize(vec3(-0.5, 0.7, 0.6)));
+  float tone = smoothstep(0.30, 0.42, l);
+  vec3 lit = mix(fill + (vec3(1.0) - fill) * 0.22, fill, uDark);
+  vec3 shd = mix(fill, fill * 0.72, uDark);
+  fill = mix(shd, lit, tone);
+  if (uIrid > 0.001) {
+    float ndv = clamp(dot(n, -rd), 0.0, 1.0);
+    vec3 film = 0.55 + 0.45 * cos(6.2832 * ((1.0 - ndv) * 1.6 + uTime * 0.02 + vec3(0.0, 0.33, 0.67)));
+    fill = mix(fill, fill * 0.4 + film * 0.6, uIrid * 0.7);
+  }
+  return fill;
+}
+// un solo punto di colorazione per pixel: la normale si calcola una volta sola e la si passa alla resa scelta
+// (ogni chiamata a calcNormal/calcAO viene inlinata dal compilatore con tutte le forme dentro: vanno contate)
+vec3 surfaceColor(vec3 p, vec3 rd, float px, vec3 bg) {
+  if (uStyle == 3) return bg;
+  if (uStyle == 1) return flatFill();
   // base delle differenze finite: almeno un texel del campo esterno, così la normale non segue
   // le discontinuità di derivata dell'interpolazione bilineare (righe sulle pareti dell'estrusione)
   vec3 n = calcNormal(p, max(uNormEps, px * 0.6));
+  return uStyle == 0 ? shade(p, rd, n) : toonShade(p, rd, n);
+}
+
+vec3 shade(vec3 p, vec3 rd, vec3 n) {
   vec3 r = reflect(rd, n);
   float ndv = clamp(dot(n, -rd), 0.0, 1.0);
   float F = 0.045 + 0.955 * pow(1.0 - ndv, 5.0);
@@ -950,11 +991,15 @@ void main() {
       t += d * stepK;
       if (t > b.y) break;
     }
-    if (hit) {
-      col = shade(ro + rd * t, rd, t * pix);
-    } else if (minR < 1.2) {
-      // bordo: copertura parziale del pixel, per un contorno senza scalini
-      col = mix(shade(ro + rd * tMin, rd, tMin * pix), bg, smoothstep(0.0, 1.2, minR));
+    // copertura del pixel: 1 dentro la silhouette, parziale sul bordo (anti-aliasing senza scalini)
+    float cov = hit ? 1.0 : (minR < 1.2 ? 1.0 - smoothstep(0.0, 1.2, minR) : 0.0);
+    float th = hit ? t : tMin;
+    if (cov > 0.0) {
+      col = mix(bg, surfaceColor(ro + rd * th, rd, th * pix, bg), cov);
+    } else if (uStyle != 0 && uOutline > 0.0 && minR < uOutline + 1.2) {
+      // contorno 2D: tratto all'esterno della silhouette, spesso uOutline pixel
+      vec3 stroke = mix(vec3(0.02), vec3(0.92), uDark);
+      col = mix(stroke, bg, smoothstep(uOutline, uOutline + 1.2, minR));
     }
   }
 
@@ -977,6 +1022,7 @@ void main() {
     spikes: 0, bc: 0.35, density: 200, width: 0.9,
     studio: 'light', quality: 'auto', size: 1,
     colorMode: 'capability', color: '#2f7cff', tintAmt: 0.8, irid: 0,
+    style: '3d', outline: 0,
     shapeThick: 0.22, shapeRound: 0.6, shapeEngrave: 0.045, shapeReact: 0.6, shapeSrc: 'Σ',
   };
   const CAP_COLORS = { brain: '#8d97a8', chat: '#ff3b5c', web: '#2f7cff', docs: '#f2a93b', images: '#2fd3a6', tools: '#ff7a1a', custom: '#8b5cf6' };
@@ -1009,7 +1055,9 @@ void main() {
     { id: 'shapeRound', group: 'group-shape', label: 'Arrotondamento', min: 0, max: 1, step: 0.01, fmt: pct, help: 'Quanto i bordi si gonfiano; limitato dallo spessore dei tratti più sottili.' },
     { id: 'shapeEngrave', group: 'group-shape', label: 'Incisione', min: 0, max: 0.08, step: 0.001, fmt: (v) => Math.round(v / 0.08 * 100) + '%', help: 'Le zone più scure dell\'immagine (dettagli di emoji e loghi a colori) vengono incise sulla faccia frontale. Non agisce su testo, path e SVG monocromatici.' },
     { id: 'shapeReact', group: 'group-shape', label: 'Reattività', min: 0, max: 1, step: 0.01, fmt: pct, help: 'Quanto la forma esterna pulsa con i bassi, respira con il volume e si increspa con gli acuti.' },
+    { id: 'outline', group: 'group-look', label: 'Contorno', min: 0, max: 12, step: 0.5, fmt: (v) => v + ' px', help: 'Nelle rese 2D: spessore del tratto attorno alla silhouette (nella resa Contorno almeno 2 px).' },
   ];
+  const STYLES = ['3d', 'flat', 'toon', 'outline'];
 
   const inputs = {};
   for (const p of PARAMS) {
@@ -1033,6 +1081,7 @@ void main() {
     for (const k in inputs) { inputs[k].input.value = S[k]; inputs[k].paint(); }
     $('studio-light').setAttribute('aria-checked', S.studio === 'light');
     $('studio-dark').setAttribute('aria-checked', S.studio === 'dark');
+    for (const st of STYLES) $('st-' + st).setAttribute('aria-checked', S.style === st);
     document.body.dataset.studio = S.studio;
     for (const q of ['auto', 'high', 'medium', 'low']) $('q-' + q).setAttribute('aria-checked', S.quality === q);
     for (const m of COLOR_MODES) $('cm-' + m).setAttribute('aria-checked', S.colorMode === m);
@@ -1055,6 +1104,7 @@ void main() {
   $('p-color').addEventListener('input', (e) => { setBase('color', e.target.value); setBase('colorMode', 'fixed'); syncControls(); save(); });
   $('studio-light').onclick = () => { setBase('studio', 'light'); syncControls(); save(); };
   $('studio-dark').onclick = () => { setBase('studio', 'dark'); syncControls(); save(); };
+  for (const st of STYLES) $('st-' + st).onclick = () => { setBase('style', st); syncControls(); save(); };
   for (const q of ['auto', 'high', 'medium', 'low']) {
     $('q-' + q).onclick = () => { S.quality = q; if (q === 'auto') dyn.scale = 0.85; syncControls(); save(); resize(); };
   }
@@ -1132,7 +1182,7 @@ void main() {
   const UNIFORMS = ['uRes', 'uCenter', 'uScaleRef', 'uTanHalf', 'uCamDist', 'uTime', 'uRot', 'uCoreR', 'uSat', 'uSatR',
     'uK', 'uDent', 'uDentR', 'uNoiseAmp', 'uRippleAmp', 'uBound', 'uSpike', 'uSpikeN', 'uSpikeW', 'uBands', 'uDark',
     'uShapeA', 'uShapeB', 'uMix', 'uBass', 'uOpen', 'uGear', 'uTint', 'uTintAmt', 'uIrid', 'uGlow',
-    'uShape0', 'uShape1', 'uShapeThick', 'uShapeRound', 'uShapeEngrave', 'uNormEps', 'uShapeReact', 'uLevel'];
+    'uShape0', 'uShape1', 'uShapeThick', 'uShapeRound', 'uShapeEngrave', 'uNormEps', 'uShapeReact', 'uLevel', 'uStyle', 'uOutline'];
   function buildProgram() {
     prog = gl.createProgram();
     gl.attachShader(prog, compile(gl.VERTEX_SHADER, VERT));
@@ -1550,6 +1600,7 @@ void main() {
     if (d.type === 'sigmabrain:define') { if (d.states) defineStates(d.states); else if (d.name) defineState(d.name, d.definition); }
     if (d.type === 'sigmabrain:config' && d.config != null) importConfig(d.config).catch(() => {});
     if (d.type === 'sigmabrain:ui') setUI(d.visible !== false);
+    if (d.type === 'sigmabrain:style' && typeof d.style === 'string') window.sigmaBrain.setStyle(d.style);
     if (d.type === 'sigmabrain:export' && e.source && e.source.postMessage) e.source.postMessage({ type: 'sigmabrain:config', config: exportConfig() }, '*');
   });
   window.sigmaBrain = {
@@ -1580,6 +1631,9 @@ void main() {
     saveState: (name) => saveState(String(name || '')),
     exportConfig: () => exportConfig(),
     ui: (visible) => setUI(visible !== false),
+    styles: STYLES.slice(),
+    get style() { return S.style; },
+    setStyle: (st) => { if (!STYLES.includes(st)) return false; setBase('style', st); syncControls(); save(); return true; },
     importConfig: (cfg) => importConfig(cfg),
   };
   window.ferrofluido = window.sigmaBrain; // alias storico
@@ -1979,7 +2033,7 @@ void main() {
   // ogni stato è un JSON: forma o capability, sequenza o parola, colore, parametri, etichetta.
   // I parametri di uno stato sono sovrapposizioni ai valori base: lo stato successivo li annulla.
   const STATE_ALIASES = { intensity: 'tintAmt', iridescence: 'irid', thickness: 'shapeThick', rounding: 'shapeRound', engrave: 'shapeEngrave', react: 'shapeReact' };
-  const STATE_PARAMS = new Set(['size', 'sens', 'morph', 'visc', 'spin', 'spikes', 'bc', 'density', 'width', 'tintAmt', 'irid', 'shapeThick', 'shapeRound', 'shapeEngrave', 'shapeReact']);
+  const STATE_PARAMS = new Set(['size', 'sens', 'morph', 'visc', 'spin', 'spikes', 'bc', 'density', 'width', 'tintAmt', 'irid', 'shapeThick', 'shapeRound', 'shapeEngrave', 'shapeReact', 'outline']);
 
   function restoreOverrides() {
     for (const k in stateBackup) { S[k] = stateBackup[k]; delete stateBackup[k]; }
@@ -2036,6 +2090,7 @@ void main() {
     def.morph = S.morph; def.visc = S.visc; def.spin = S.spin;
     def.thickness = S.shapeThick; def.rounding = S.shapeRound; def.engrave = S.shapeEngrave; def.react = S.shapeReact;
     def.studio = S.studio;
+    def.style = S.style; def.outline = S.outline;
     def.label = label;
     return def;
   }
@@ -2056,6 +2111,7 @@ void main() {
       if (STATE_PARAMS.has(k) && typeof def[key] === 'number') applyOverride(k, clamp(def[key], inputs[k].p.min, inputs[k].p.max));
     }
     if (def.studio === 'light' || def.studio === 'dark') applyOverride('studio', def.studio);
+    if (typeof def.style === 'string' && STYLES.includes(def.style)) applyOverride('style', def.style);
     if (typeof def.color === 'string') {
       if (/^#[0-9a-f]{6}$/i.test(def.color)) { applyOverride('colorMode', 'fixed'); applyOverride('color', def.color); }
       else if (COLOR_MODES.includes(def.color)) applyOverride('colorMode', def.color);
@@ -2117,6 +2173,7 @@ void main() {
       if (inputs[k]) { if (typeof v === 'number' && isFinite(v)) out[k] = clamp(v, inputs[k].p.min, inputs[k].p.max); }
       else if (k === 'colorMode') { if (COLOR_MODES.includes(v)) out[k] = v; }
       else if (k === 'studio') { if (v === 'light' || v === 'dark') out[k] = v; }
+      else if (k === 'style') { if (STYLES.includes(v)) out[k] = v; }
       else if (k === 'quality') { if (['auto', 'high', 'medium', 'low'].includes(v)) out[k] = v; }
       else if (k === 'color') { if (/^#[0-9a-f]{6}$/i.test(v)) out[k] = v; }
       else if (k === 'shapeSrc') { const keep = persistable(v); if (keep) out[k] = keep; }
@@ -2195,6 +2252,7 @@ void main() {
   const query = new URLSearchParams(location.search);
   if (query.get('ui') === 'off') setUI(false);
   if (query.get('studio') === 'dark' || query.get('studio') === 'light') { setBase('studio', query.get('studio')); syncControls(); }
+  if (STYLES.includes(query.get('style'))) { setBase('style', query.get('style')); syncControls(); }
   const cfgUrl = query.get('config');
   setShape(S.shapeSrc || 'Σ', { activate: hashCap === 'custom', instant: true, silent: true })
     .then(() => (cfgUrl ? importConfig(cfgUrl).catch((e) => setStatus((e && e.message) || 'Configurazione non caricata.', true, 8000)) : null))
@@ -2344,7 +2402,10 @@ void main() {
     const noiseAmp = 0.035 + amt * (0.09 + 0.1 * A.mid) + 0.14 * melt;
     const rippleAmp = 0.003 + 0.014 * A.treble * amt + 0.012 * melt;
     const extShape = Math.max(extent, morph.a.ext, morph.b.ext);
-    const bound = extShape + K * 0.25 + noiseAmp + rippleAmp + (A.spike > 0.002 ? A.spike * 1.25 + 0.1 : 0) + 0.06;
+    // contorno 2D in pixel del buffer (nella resa Contorno almeno 2 px); allarga la bounding sphere di conseguenza
+    const outlinePx = (S.style === 'outline' ? Math.max(S.outline, 2) : S.style === '3d' ? 0 : S.outline) * (canvas.width / innerWidth);
+    const outlineWorld = outlinePx * Math.tan(22 * Math.PI / 180) / (0.5 * Math.min(canvas.width, canvas.height)) * (5.4 / S.size) * 1.5;
+    const bound = extShape + K * 0.25 + noiseAmp + rippleAmp + (A.spike > 0.002 ? A.spike * 1.25 + 0.1 : 0) + 0.06 + outlineWorld;
 
     const w = canvas.width, h = canvas.height;
     const css = w / innerWidth;
@@ -2377,6 +2438,8 @@ void main() {
     gl.uniform1f(U.uNormEps, shapeA >= 6 || shapeB >= 6 ? 0.008 : 0.0012);
     gl.uniform1f(U.uShapeReact, S.shapeReact);
     gl.uniform1f(U.uLevel, A.level);
+    gl.uniform1i(U.uStyle, STYLES.indexOf(S.style));
+    gl.uniform1f(U.uOutline, outlinePx);
     gl.uniform1f(U.uCoreR, coreR);
     gl.uniform3fv(U.uSat, satPos);
     gl.uniform1fv(U.uSatR, satR);
