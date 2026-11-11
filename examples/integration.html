@@ -4,10 +4,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Sigma Brain · integration example</title>
+<title>Ferrofluid AI Avatar · integration example</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='13' fill='%23121214'/%3E%3Cellipse cx='11.5' cy='10.5' rx='4' ry='2.2' fill='%23ffffff' opacity='.55'/%3E%3C/svg%3E">
 <style>
-  /* Minimal host page: embeds Sigma Brain in an iframe and drives it with postMessage */
+  /* Minimal host page: embeds Ferrofluid AI Avatar in an iframe and drives it with postMessage */
   :root { --ink: #121214; --ink-2: #55575c; --line: rgba(18,18,20,.12); --well: rgba(18,18,20,.06); --accent: #8b5cf6; }
   body { margin: 0; font: 14px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--ink); background: #fafaf8; }
   main { max-width: 1100px; margin: 0 auto; padding: 24px 16px 48px; display: grid; gap: 18px; }
@@ -26,11 +26,11 @@
 </head>
 <body>
 <main>
-  <h1>Sigma Brain · integration example</h1>
+  <h1>Ferrofluid AI Avatar · integration example</h1>
   <p>This page embeds <code>index.html</code> in an iframe without its controls (<code>?ui=off</code>) and drives it with <code>postMessage</code>. The script at the bottom of this file is meant to be copied into your app.</p>
 
   <!-- allow="microphone" lets the iframe ask for microphone permission -->
-  <iframe id="brain" class="frame" src="../index.html?ui=off#idle" allow="microphone" title="Sigma Brain"></iframe>
+  <iframe id="brain" class="frame" src="../index.html?ui=off#idle" allow="microphone" title="Ferrofluid AI Avatar"></iframe>
 
   <section>
     <h2>Assistant states</h2>
@@ -83,7 +83,7 @@
   // In your app, call brain('web') when the assistant starts searching, brain('reply') when it answers, and so on.
   const MAP = { idle: 'idle', thinking: 'thinking', reply: 'answering', web: 'searching', files: 'reading',
                 vision: 'looking', code: 'coding', hello: 'greeting', error: 'error', done: 'done' };
-  function brain(event) { return send({ type: 'sigmabrain:state', name: MAP[event] || 'idle' }); }
+  function brain(event) { return send({ type: 'ferrofluid:state', name: MAP[event] || 'idle' }); }
 
   // ---- 3. demo buttons ----
   const STATES = ['idle', 'thinking', 'answering', 'searching', 'reading', 'looking', 'coding', 'greeting', 'error', 'done'];
@@ -91,7 +91,7 @@
   for (const s of STATES) {
     const b = document.createElement('button');
     b.type = 'button'; b.textContent = s; b.dataset.state = s; b.setAttribute('aria-pressed', s === 'idle');
-    b.onclick = () => { send({ type: 'sigmabrain:state', name: s }); mark(s); };
+    b.onclick = () => { send({ type: 'ferrofluid:state', name: s }); mark(s); };
     box.appendChild(b);
   }
   function mark(s) { for (const b of box.children) b.setAttribute('aria-pressed', b.dataset.state === s); }
@@ -107,10 +107,10 @@
     uiVisible = visible;
     uiToggle.setAttribute('aria-pressed', visible);
     uiToggle.textContent = visible ? "Hide the fluid's controls" : "Show the fluid's controls";
-    send({ type: 'sigmabrain:ui', visible });
+    send({ type: 'ferrofluid:ui', visible });
   };
   uiToggle.onclick = () => setControls(!uiVisible);
-  document.getElementById('export').onclick = () => send({ type: 'sigmabrain:export' });
+  document.getElementById('export').onclick = () => send({ type: 'ferrofluid:export' });
   // Microphone permission can only be requested from inside the iframe: show the controls
   // and let the user press the microphone button ("Microfono") in the fluid's dock.
   document.getElementById('mic').onclick = () => {
@@ -118,16 +118,16 @@
     write('ℹ', 'Press the microphone button in the fluid\'s dock; the browser will ask for permission.');
   };
 
-  for (const b of document.querySelectorAll('[data-shape]')) b.onclick = () => send({ type: 'sigmabrain:shape', source: b.dataset.shape });
-  for (const b of document.querySelectorAll('[data-spell]')) b.onclick = () => send({ type: 'sigmabrain:spell', word: b.dataset.spell });
-  for (const b of document.querySelectorAll('[data-color]')) b.onclick = () => send({ type: 'sigmabrain:color', color: b.dataset.color });
-  for (const b of document.querySelectorAll('[data-color-mode]')) b.onclick = () => send({ type: 'sigmabrain:colorMode', mode: b.dataset.colorMode });
+  for (const b of document.querySelectorAll('[data-shape]')) b.onclick = () => send({ type: 'ferrofluid:shape', source: b.dataset.shape });
+  for (const b of document.querySelectorAll('[data-spell]')) b.onclick = () => send({ type: 'ferrofluid:spell', word: b.dataset.spell });
+  for (const b of document.querySelectorAll('[data-color]')) b.onclick = () => send({ type: 'ferrofluid:color', color: b.dataset.color });
+  for (const b of document.querySelectorAll('[data-color-mode]')) b.onclick = () => send({ type: 'ferrofluid:colorMode', mode: b.dataset.colorMode });
 
   // ---- 4. replies from the fluid (currently only the configuration export) ----
   window.addEventListener('message', (e) => {
     if (e.source !== frame.contentWindow) return;
     const d = e.data;
-    if (d && d.type === 'sigmabrain:config') write('←', { type: d.type, state: d.config.state, states: Object.keys(d.config.states) });
+    if (d && d.type === 'ferrofluid:config') write('←', { type: d.type, state: d.config.state, states: Object.keys(d.config.states) });
   });
 </script>
 </body>

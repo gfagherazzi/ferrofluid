@@ -9,4 +9,4 @@ Thumbs.db
 node_modules/
 
 # Configurations exported from the page while experimenting
-sigma-brain.config*.json
+ferrofluid-avatar.config*.json

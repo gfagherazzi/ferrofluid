@@ -1,10 +1,10 @@
 <!doctype html>
-<!-- Sigma Brain · https://github.com/gfagherazzi/ferrofluid · SPDX-License-Identifier: Apache-2.0 -->
+<!-- Ferrofluid AI Avatar · https://github.com/gfagherazzi/ferrofluid · SPDX-License-Identifier: Apache-2.0 -->
 <html lang="it">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Sigma Brain</title>
+<title>Ferrofluid AI Avatar</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='13' fill='%23121214'/%3E%3Cellipse cx='11.5' cy='10.5' rx='4' ry='2.2' fill='%23ffffff' opacity='.55'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -360,6 +360,7 @@ input[type="color"]::-moz-color-swatch { border: 0; border-radius: 5px; }
   .meter-row.sub { font-size: 10px; }
   #spectrum { width: 72px; }
   .params-toggle .lbl { display: none; }
+  .wordmark { font-size: 11.5px; letter-spacing: .2em; }
   .tagline { font-size: 12px; }
   .caps {
     top: calc(env(safe-area-inset-top, 0px) + 118px); transform: none;
@@ -380,10 +381,10 @@ input[type="color"]::-moz-color-swatch { border: 0; border-radius: 5px; }
 </head>
 <body>
 
-<canvas id="gl" aria-label="Sigma Brain: massa fluida animata dall'audio"></canvas>
+<canvas id="gl" aria-label="Ferrofluid AI Avatar: massa fluida animata dall'audio"></canvas>
 
 <header class="brand chrome">
-  <div class="wordmark">SIGMA BRAIN</div>
+  <div class="wordmark">FERROFLUID AI AVATAR</div>
   <div class="tagline" id="tagline"><span>Trascina per ruotare, rotella per lo zoom</span><span id="tagline-keys"><kbd>1</kbd>–<kbd>7</kbd> capability · <kbd>M</kbd> microfono · <kbd>H</kbd> comandi</span></div>
   <div class="cap-now" id="cap-now">Cervello · stato di riposo</div>
 </header>
@@ -431,7 +432,7 @@ input[type="color"]::-moz-color-swatch { border: 0; border-radius: 5px; }
   <div class="group" id="group-states">
     <h2>Stati</h2>
     <div class="chips" id="state-chips" aria-label="Stati del vocabolario"></div>
-    <p class="help">Vocabolario configurabile: forma, colore e ritmo per ogni attività dell'assistente. Dall'app: <code>sigmaBrain.state('searching')</code>. Le definizioni sono nel blocco <code>#states-json</code> della pagina, oppure via <code>define()</code> e <code>loadStates()</code>.</p>
+    <p class="help">Vocabolario configurabile: forma, colore e ritmo per ogni attività dell'assistente. Dall'app: <code>ferrofluid.state('searching')</code>. Le definizioni sono nel blocco <code>#states-json</code> della pagina, oppure via <code>define()</code> e <code>loadStates()</code>.</p>
   </div>
   <div class="group" id="group-config">
     <h2>Configurazione</h2>
@@ -446,7 +447,7 @@ input[type="color"]::-moz-color-swatch { border: 0; border-radius: 5px; }
       <button type="button" id="cfg-remove">Elimina stato attivo</button>
     </div>
     <input type="file" id="cfg-input" accept="application/json,.json" hidden>
-    <p class="help">Regola i parametri, salva la combinazione come stato, poi esporta il JSON. L'app lo passa alla pagina con <code>sigmaBrain.importConfig(json)</code>, con <code>postMessage</code> oppure con <code>index.html?config=url</code>.</p>
+    <p class="help">Regola i parametri, salva la combinazione come stato, poi esporta il JSON. L'app lo passa alla pagina con <code>ferrofluid.importConfig(json)</code>, con <code>postMessage</code> oppure con <code>index.html?config=url</code>.</p>
   </div>
   <div class="group" id="group-motion">
     <h2>Massa</h2>
@@ -476,11 +477,11 @@ input[type="color"]::-moz-color-swatch { border: 0; border-radius: 5px; }
     <div class="row">
       <div class="row-head"><label for="shape-text">Emoji, testo o path SVG</label></div>
       <div class="row-inline fields">
-        <input type="text" class="text-input" id="shape-text" placeholder="Σ  ★  🚀  M12 2L2 22h20Z" autocomplete="off" spellcheck="false">
+        <input type="text" class="text-input" id="shape-text" placeholder="AI  ★  🚀  M12 2L2 22h20Z" autocomplete="off" spellcheck="false">
         <button type="button" class="transport" id="shape-apply">Applica</button>
       </div>
       <div class="chips" id="shape-presets" aria-label="Forme pronte">
-        <button type="button" data-src="Σ">Σ</button>
+        <button type="button" data-src="AI">AI</button>
         <button type="button" data-src="★">★</button>
         <button type="button" data-src="⚡">⚡</button>
         <button type="button" data-src="🚀">🚀</button>
@@ -495,7 +496,7 @@ input[type="color"]::-moz-color-swatch { border: 0; border-radius: 5px; }
     <div class="row">
       <div class="row-head"><label for="seq-text">Parola o sequenza</label></div>
       <div class="row-inline fields">
-        <input type="text" class="text-input" id="seq-text" placeholder="SIGMA   oppure   🔍, 📄, 💬" autocomplete="off" spellcheck="false">
+        <input type="text" class="text-input" id="seq-text" placeholder="AVATAR   oppure   🔍, 📄, 💬" autocomplete="off" spellcheck="false">
         <button type="button" class="transport" id="seq-run">Avvia</button>
       </div>
       <p class="help">Una parola viene scritta lettera per lettera e chiusa con la parola intera; più voci separate da virgola si alternano in ciclo.</p>
@@ -540,7 +541,7 @@ input[type="color"]::-moz-color-swatch { border: 0; border-radius: 5px; }
 <div class="drop" id="drop" hidden>RILASCIA UN FILE AUDIO O UNA FORMA (SVG, PNG)</div>
 <div class="fatal" id="fatal" hidden><div><strong>WEBGL2 NON DISPONIBILE</strong><span id="fatal-msg"></span><pre id="fatal-log"></pre></div></div>
 
-<!-- Vocabolario di stati: modificabile qui, oppure sostituibile dall'app con sigmaBrain.loadStates(url).
+<!-- Vocabolario di stati: modificabile qui, oppure sostituibile dall'app con ferrofluid.loadStates(url).
      Chiavi: capability | shape | sequence | spell, interval, loop, whole, color (#hex | capability | audio | none),
      intensity, iridescence, size, spikes, bc, density, width, morph, visc, spin, thickness, rounding, studio, label -->
 <script type="application/json" id="states-json">
@@ -1024,10 +1025,10 @@ void main() {
     studio: 'light', quality: 'auto', size: 1,
     colorMode: 'capability', color: '#2f7cff', tintAmt: 0.8, irid: 0,
     style: '3d', outline: 0,
-    shapeThick: 0.22, shapeRound: 0.6, shapeEngrave: 0.045, shapeReact: 0.6, shapeSrc: 'Σ',
+    shapeThick: 0.22, shapeRound: 0.6, shapeEngrave: 0.045, shapeReact: 0.6, shapeSrc: 'AI',
   };
   const CAP_COLORS = { brain: '#8d97a8', chat: '#ff3b5c', web: '#2f7cff', docs: '#f2a93b', images: '#2fd3a6', tools: '#ff7a1a', custom: '#8b5cf6' };
-  const STORE_KEY = 'sigmabrain.v1';
+  const STORE_KEY = 'ferrofluid-avatar.v1';
   const S = { ...DEFAULTS };
   try { Object.assign(S, JSON.parse(localStorage.getItem(STORE_KEY) || '{}')); } catch { /* storage non disponibile */ }
   let saveTimer = 0;
@@ -1592,19 +1593,19 @@ void main() {
   window.addEventListener('message', (e) => {
     const d = e.data;
     if (!d || typeof d !== 'object') return;
-    if (d.type === 'sigmabrain:capability' && typeof d.name === 'string') { stopAuto(); setCapability(d.name); }
-    if (d.type === 'sigmabrain:shape' && d.source != null) setShape(d.source, d.options || {});
-    if (d.type === 'sigmabrain:sequence' && d.items != null) playSequence(d.items, d.options || {});
-    if (d.type === 'sigmabrain:spell' && typeof d.word === 'string') spell(d.word, d.options || {});
-    if (d.type === 'sigmabrain:stop') { stopSequence(); stopAuto(); }
-    if (d.type === 'sigmabrain:state') applyState(d.name == null ? null : String(d.name));
-    if (d.type === 'sigmabrain:define') { if (d.states) defineStates(d.states); else if (d.name) defineState(d.name, d.definition); }
-    if (d.type === 'sigmabrain:config' && d.config != null) importConfig(d.config).catch(() => {});
-    if (d.type === 'sigmabrain:ui') setUI(d.visible !== false);
-    if (d.type === 'sigmabrain:style' && typeof d.style === 'string') window.sigmaBrain.setStyle(d.style);
-    if (d.type === 'sigmabrain:export' && e.source && e.source.postMessage) e.source.postMessage({ type: 'sigmabrain:config', config: exportConfig() }, '*');
+    if (d.type === 'ferrofluid:capability' && typeof d.name === 'string') { stopAuto(); setCapability(d.name); }
+    if (d.type === 'ferrofluid:shape' && d.source != null) setShape(d.source, d.options || {});
+    if (d.type === 'ferrofluid:sequence' && d.items != null) playSequence(d.items, d.options || {});
+    if (d.type === 'ferrofluid:spell' && typeof d.word === 'string') spell(d.word, d.options || {});
+    if (d.type === 'ferrofluid:stop') { stopSequence(); stopAuto(); }
+    if (d.type === 'ferrofluid:state') applyState(d.name == null ? null : String(d.name));
+    if (d.type === 'ferrofluid:define') { if (d.states) defineStates(d.states); else if (d.name) defineState(d.name, d.definition); }
+    if (d.type === 'ferrofluid:config' && d.config != null) importConfig(d.config).catch(() => {});
+    if (d.type === 'ferrofluid:ui') setUI(d.visible !== false);
+    if (d.type === 'ferrofluid:style' && typeof d.style === 'string') window.ferrofluid.setStyle(d.style);
+    if (d.type === 'ferrofluid:export' && e.source && e.source.postMessage) e.source.postMessage({ type: 'ferrofluid:config', config: exportConfig() }, '*');
   });
-  window.sigmaBrain = {
+  window.ferrofluid = {
     capabilities: CAPS.map((c) => c.id),
     get capability() { return CAPS[capNow].id; },
     get progress() { return morph.t; },
@@ -1637,12 +1638,11 @@ void main() {
     setStyle: (st) => { if (!STYLES.includes(st)) return false; setBase('style', st); syncControls(); save(); return true; },
     importConfig: (cfg) => importConfig(cfg),
   };
-  window.ferrofluido = window.sigmaBrain; // alias storico
   window.addEventListener('message', (e) => {
     const d = e.data;
     if (!d || typeof d !== 'object') return;
-    if (d.type === 'sigmabrain:color' && typeof d.color === 'string') window.sigmaBrain.setColor(d.color);
-    if (d.type === 'sigmabrain:colorMode' && typeof d.mode === 'string') window.sigmaBrain.setColorMode(d.mode);
+    if (d.type === 'ferrofluid:color' && typeof d.color === 'string') window.ferrofluid.setColor(d.color);
+    if (d.type === 'ferrofluid:colorMode' && typeof d.mode === 'string') window.ferrofluid.setColorMode(d.mode);
   });
 
   // ---------- forma esterna: silhouette → campo di distanza 2D → texture ----------
@@ -2159,7 +2159,7 @@ void main() {
     // la forma va solo in `shape`, non anche in `settings.shapeSrc`: può essere un data URI da centinaia di KB
     const { shapeSrc, ...settings } = { ...S, ...stateBackup };
     return {
-      sigmaBrain: 1,
+      ferrofluidAvatar: 1,
       exported: new Date().toISOString(),
       settings,
       capability: CAPS[capNow].id,
@@ -2229,8 +2229,8 @@ void main() {
     setStatus('Stato eliminato: ' + n, false, 3000);
   };
   $('cfg-export').onclick = () => {
-    downloadJson(exportConfig(), 'sigma-brain.config.json');
-    setStatus('Configurazione esportata: sigma-brain.config.json', false, 4000);
+    downloadJson(exportConfig(), 'ferrofluid-avatar.config.json');
+    setStatus('Configurazione esportata: ferrofluid-avatar.config.json', false, 4000);
   };
   $('cfg-copy').onclick = () => {
     const text = JSON.stringify(exportConfig(), null, 2);
@@ -2248,7 +2248,7 @@ void main() {
       .then((ok) => (ok ? setStatus('Configurazione importata: ' + f.name, false, 4000) : bad()), bad);
   });
 
-  // forma iniziale: quella salvata (o la Σ di Sigma); attiva subito solo se l'URL lo chiede
+  // forma iniziale: quella salvata (o la scritta AI); attiva subito solo se l'URL lo chiede
   // Poi index.html?config=percorso.json carica una configurazione esportata e #nome apre in uno stato.
   // In sequenza, non in parallelo: ogni passo chiama setShape e l'ultimo a finire vincerebbe.
   // parametri dell'URL per l'incorporamento: ?ui=off nasconde i comandi, ?studio=dark|light il fondale
@@ -2257,7 +2257,7 @@ void main() {
   if (query.get('studio') === 'dark' || query.get('studio') === 'light') { setBase('studio', query.get('studio')); syncControls(); }
   if (STYLES.includes(query.get('style'))) { setBase('style', query.get('style')); syncControls(); }
   const cfgUrl = query.get('config');
-  setShape(S.shapeSrc || 'Σ', { activate: hashCap === 'custom', instant: true, silent: true })
+  setShape(S.shapeSrc || 'AI', { activate: hashCap === 'custom', instant: true, silent: true })
     .then(() => (cfgUrl ? importConfig(cfgUrl).catch((e) => setStatus((e && e.message) || 'Configurazione non caricata.', true, 8000)) : null))
     .then(() => { if (hasState(hashCap)) applyState(hashCap); });
 

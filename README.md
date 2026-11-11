@@ -1,6 +1,6 @@
 <div align="center">
 
-# Sigma Brain
+# Ferrofluid AI Avatar
 
 **A glossy black ferrofluid that listens, and reshapes itself into whatever your assistant is doing.**
 
@@ -11,7 +11,7 @@ Real-time, audio-reactive and embeddable. One HTML file, zero dependencies.
 ![WebGL2](https://img.shields.io/badge/WebGL-2.0-990000.svg)
 ![No build step](https://img.shields.io/badge/build-none-lightgrey.svg)
 
-<img src="docs/demo.gif" width="560" alt="A glossy black blob morphing into a red heart, a blue ringed planet and a purple Σ, then back to a blob">
+<img src="docs/demo.gif" width="560" alt="A glossy black blob morphing into a red heart, a blue ringed planet and the purple letters AI, then back to a blob">
 
 [**Live demo**](https://gfagherazzi.github.io/ferrofluid/) · [Integration example](https://gfagherazzi.github.io/ferrofluid/examples/integration.html) · [Quick start](#quick-start) · [API](#api-reference)
 
@@ -19,7 +19,7 @@ Real-time, audio-reactive and embeddable. One HTML file, zero dependencies.
 
 ---
 
-Sigma Brain renders a ferrofluid mass in the browser with WebGL2 (ray marching of signed distance fields) and drives it with the Web Audio API. It was designed as the visual "brain" of an AI assistant: the mass breathes with the microphone and morphs into a heart while chatting, a planet while searching the web, an open book while reading documents, or any icon you give it.
+Ferrofluid AI Avatar renders a ferrofluid mass in the browser with WebGL2 (ray marching of signed distance fields) and drives it with the Web Audio API. It was designed as the visual "brain" of an AI assistant: the mass breathes with the microphone and morphs into a heart while chatting, a planet while searching the web, an open book while reading documents, or any icon you give it.
 
 > [!NOTE]
 > The on-screen interface is currently in **Italian**. Everything is documented here in English, with the Italian label next to each control (see the [UI glossary](#ui-glossary)). The JavaScript API, URL parameters and messages are in English.
@@ -68,9 +68,9 @@ Sigma Brain renders a ferrofluid mass in the browser with WebGL2 (ray marching o
 |---|---|---|
 | ![Photo frame with sun and mountains in relief](docs/screenshots/images-photo.png) | ![Gear with ten teeth](docs/screenshots/tools-gear.png) | ![Blob with an iridescent thin-film sheen](docs/screenshots/iridescence.png) |
 
-| Custom shape `setShape('Σ')` | Custom shape `setShape('★')` | Custom shape from SVG |
+| Custom shape `setShape('AI')` | Custom shape `setShape('★')` | Custom shape from SVG |
 |---|---|---|
-| ![Extruded Sigma letter](docs/screenshots/shape-sigma.png) | ![Extruded star](docs/screenshots/shape-star.png) | ![Extruded circle and rounded rectangle](docs/screenshots/shape-svg.png) |
+| ![The letters AI extruded as a fluid mass](docs/screenshots/shape-ai.png) | ![Extruded star](docs/screenshots/shape-star.png) | ![Extruded circle and rounded rectangle](docs/screenshots/shape-svg.png) |
 
 | Flat | Two-tone | Outline |
 |---|---|---|
@@ -190,16 +190,16 @@ A morph takes 1.4 s: halfway through, the fluid "melts" and reforms into the new
 
 ### Custom shapes
 
-The `custom` shape takes its silhouette from an external graphic and turns it into a 3D fluid mass. It starts with the Σ of Sigma.
+The `custom` shape takes its silhouette from an external graphic and turns it into a 3D fluid mass. It starts with the text AI.
 
 | Source | Example |
 |---|---|
-| emoji or short text (up to 12 characters) | `🚀`, `Σ`, `★`, `AI` |
+| emoji or short text (up to 12 characters) | `🚀`, `★`, `AI`, `OK` |
 | SVG path (`d` attribute) | `M12 2L2 22h20Z` |
 | SVG markup | `<svg viewBox="0 0 100 100">…</svg>` |
 | image (PNG, JPG, WebP) | file, URL or data URI; transparent images use alpha, opaque ones are read as a dark silhouette on a light background |
 
-In the panel (*Forma esterna*): a text field with presets (Σ ★ ⚡ 🚀 🧠 and a path), *Carica…* (Load…) for SVG or image files, and four sliders:
+In the panel (*Forma esterna*): a text field with presets (AI ★ ⚡ 🚀 🧠 and a path), *Carica…* (Load…) for SVG or image files, and four sliders:
 
 - **Thickness** (*Spessore*): extrusion depth.
 - **Rounding** (*Arrotondamento*): how much the edges bulge. It is capped automatically by the thinnest strokes, so line icons do not vanish.
@@ -216,17 +216,17 @@ Text sources (emoji, text, path, SVG) are remembered by the browser; images load
 
 ### Words and sequences
 
-*Parola o sequenza* (Word or sequence) in the same panel group: a single word (`SIGMA`) is spelled letter by letter and ends on the whole word; comma-separated items (`🔍, 📄, 💬`) loop until you press *Ferma* (Stop), pick another capability or load another shape. The pace follows animation time, so every morph completes before the next one starts.
+*Parola o sequenza* (Word or sequence) in the same panel group: a single word (`AVATAR`) is spelled letter by letter and ends on the whole word; comma-separated items (`🔍, 📄, 💬`) loop until you press *Ferma* (Stop), pick another capability or load another shape. The pace follows animation time, so every morph completes before the next one starts.
 
-<img src="docs/screenshots/spell-si.png" width="420" alt="The word SI formed by the fluid at the end of a spell sequence">
+<img src="docs/screenshots/spell-hi.png" width="420" alt="The word HI formed by the fluid at the end of a spell sequence">
 
 ```js
-sigmaBrain.spell('SIGMA');                                   // S, I, G, M, A, then SIGMA
-sigmaBrain.spell('HELLO', { interval: 1, whole: false });    // letters only
-sigmaBrain.playSequence(['🔍', '📄', '💬'], { interval: 2 }); // loops (loop: true by default)
-sigmaBrain.playSequence('★, Σ, ⚡', { loop: false });         // comma-separated string, played once
-sigmaBrain.playSequence(['web', '🔍']);                       // capability ids can be mixed in
-sigmaBrain.stopSequence();
+ferrofluid.spell('AVATAR');                                  // A, V, A, T, A, R, then AVATAR
+ferrofluid.spell('HELLO', { interval: 1, whole: false });    // letters only
+ferrofluid.playSequence(['🔍', '📄', '💬'], { interval: 2 }); // loops (loop: true by default)
+ferrofluid.playSequence('★, AI, ⚡', { loop: false });        // comma-separated string, played once
+ferrofluid.playSequence(['web', '🔍']);                       // capability ids can be mixed in
+ferrofluid.stopSequence();
 ```
 
 ## Color
@@ -255,11 +255,11 @@ The same shape and animation can be painted flat, for interfaces where a glossy 
 
 **Outline** (0–12 px) adds a stroke to Flat and Two-tone too; the Outline style uses at least 2 px. The stroke is drawn outside the silhouette. Everything else (color, capabilities, custom shapes, sequences, spikes) works the same; a custom shape in Flat style is effectively an icon animated by sound.
 
-Select it in *Studio → Resa*, with `?style=flat` in the URL, with `sigmaBrain.setStyle('flat')` or with the `style` key of a state.
+Select it in *Studio → Resa*, with `?style=flat` in the URL, with `ferrofluid.setStyle('flat')` or with the `style` key of a state.
 
 ## States
 
-States are the layer meant for your app. A **state** is a name (`searching`, `answering`, …) that bundles a shape or sequence, a color, parameters and a label. Your app only calls `sigmaBrain.state('searching')`; the whole choreography lives in JSON.
+States are the layer meant for your app. A **state** is a name (`searching`, `answering`, …) that bundles a shape or sequence, a color, parameters and a label. Your app only calls `ferrofluid.state('searching')`; the whole choreography lives in JSON.
 
 The default vocabulary is defined in the `<script type="application/json" id="states-json">` block of `index.html` (edit it without touching the code): `idle`, `thinking`, `answering`, `searching`, `reading`, `looking`, `coding`, `greeting`, `error`, `done`. Try them from *Parametri → Stati*, or open `index.html#searching`.
 
@@ -283,11 +283,11 @@ A state definition (all keys optional):
 If several of `spell`, `sequence`, `shape` and `capability` are present, the first one in this order wins. State parameters are overrides on top of the base settings: the next state (or `state(null)`) reverts them, and the browser always stores the base values.
 
 ```js
-sigmaBrain.state('searching');
-sigmaBrain.define('celebrating', { spell: 'WOW', color: '#ffd400', iridescence: 0.6, label: 'Hooray' });
-sigmaBrain.defineStates({ /* several at once */ });
-await sigmaBrain.loadStates('/states.json');   // from a JSON file
-sigmaBrain.state(null);                        // leave the active state
+ferrofluid.state('searching');
+ferrofluid.define('celebrating', { spell: 'WOW', color: '#ffd400', iridescence: 0.6, label: 'Hooray' });
+ferrofluid.defineStates({ /* several at once */ });
+await ferrofluid.loadStates('/states.json');   // from a JSON file
+ferrofluid.state(null);                        // leave the active state
 ```
 
 ## Configuration: tune, save, export
@@ -297,17 +297,17 @@ The intended workflow: tune everything in the interface, save each combination a
 1. Adjust shape, color and parameters in the panel.
 2. In *Parametri → Configurazione* type a name (e.g. `searching`) and press *Salva stato* (Save state). The current situation (shape or running sequence, color, all parameters) becomes a state definition.
 3. Repeat for each state. *Elimina stato attivo* (Delete active state) removes the selected one.
-4. *Esporta JSON* (Export JSON) downloads `sigma-brain.config.json`; *Copia JSON* copies it to the clipboard; *Importa…* (Import…) loads an exported file.
+4. *Esporta JSON* (Export JSON) downloads `ferrofluid-avatar.config.json`; *Copia JSON* copies it to the clipboard; *Importa…* (Import…) loads an exported file.
 
 Load the file in production with any of:
 
 ```text
-index.html?config=sigma-brain.config.json
+index.html?config=ferrofluid-avatar.config.json
 ```
 
 ```js
-await sigmaBrain.importConfig(json);   // object, or URL of a JSON file
-iframe.contentWindow.postMessage({ type: 'sigmabrain:config', config: json }, '*');
+await ferrofluid.importConfig(json);   // object, or URL of a JSON file
+iframe.contentWindow.postMessage({ type: 'ferrofluid:config', config: json }, '*');
 ```
 
 <details>
@@ -315,7 +315,7 @@ iframe.contentWindow.postMessage({ type: 'sigmabrain:config', config: json }, '*
 
 ```jsonc
 {
-  "sigmaBrain": 1,                       // format version
+  "ferrofluidAvatar": 1,                 // format version
   "exported": "2026-11-11T10:00:00.000Z",
   "settings": {                          // base values of every parameter
     "sens": 1, "morph": 0.65, "visc": 0.5, "spin": 0.3,
@@ -326,7 +326,7 @@ iframe.contentWindow.postMessage({ type: 'sigmabrain:config', config: json }, '*
     "shapeThick": 0.22, "shapeRound": 0.6, "shapeEngrave": 0.045, "shapeReact": 0.6
   },
   "capability": "brain",                 // shape shown when no state is active
-  "shape": "Σ",                          // current custom-shape source (string or object)
+  "shape": "AI",                         // current custom-shape source (string or object)
   "state": "idle",                       // state to apply after loading, or null
   "states": { "idle": { "capability": "brain", "label": "In ascolto" } }
 }
@@ -342,7 +342,7 @@ Unknown keys and out-of-range values are ignored or clamped on import. Images lo
 
 ```html
 <iframe id="brain" src="https://<user>.github.io/<repo>/index.html?ui=off#idle"
-        allow="microphone" title="Sigma Brain"
+        allow="microphone" title="Ferrofluid AI Avatar"
         style="width:100%;height:480px;border:0;background:#d7d7d5"></iframe>
 ```
 
@@ -358,7 +358,7 @@ Unknown keys and out-of-range values are ignored or clamped on import. Images lo
 | `?config=file.json` | load an exported configuration (same-origin or CORS-enabled URL) |
 | `#idle`, `#searching`, `#web`, `#custom`, … | initial state or capability |
 
-They combine: `index.html?ui=off&studio=dark&style=flat&config=sigma.json#idle`.
+They combine: `index.html?ui=off&studio=dark&style=flat&config=avatar.json#idle`.
 
 ### 3. Drive it from your app
 
@@ -373,12 +373,12 @@ Most apps need a single message, the **state**:
   // your app's events → fluid states
   const MAP = { idle: 'idle', thinking: 'thinking', reply: 'answering', web: 'searching',
                 files: 'reading', vision: 'looking', code: 'coding', error: 'error', done: 'done' };
-  function brain(event) { return send({ type: 'sigmabrain:state', name: MAP[event] || 'idle' }); }
+  function brain(event) { return send({ type: 'ferrofluid:state', name: MAP[event] || 'idle' }); }
 
   // or, without states: a shape, a color, a word
-  send({ type: 'sigmabrain:shape', source: '🚀' });
-  send({ type: 'sigmabrain:color', color: '#ff0066' });
-  send({ type: 'sigmabrain:spell', word: 'HELLO' });
+  send({ type: 'ferrofluid:shape', source: '🚀' });
+  send({ type: 'ferrofluid:color', color: '#ff0066' });
+  send({ type: 'ferrofluid:spell', word: 'HELLO' });
 </script>
 ```
 
@@ -389,13 +389,13 @@ Good to know:
 - Messages sent before the iframe's `load` event are lost; wait for it as above.
 - `'*'` as target origin is fine to start with; in production pass the fluid page's origin.
 - The page accepts messages from **any** origin, by design, because it is meant to be embedded anywhere. Do not put secrets in states or configurations.
-- To read the current configuration from outside, send `{ type: 'sigmabrain:export' }`; the page replies to the sender with `{ type: 'sigmabrain:config', config }`.
-- Microphone permission can only be granted inside the iframe, when the user presses the microphone button. Show the controls with `{ type: 'sigmabrain:ui', visible: true }`.
-- If your script runs inside `index.html` itself, call `window.sigmaBrain` directly instead of posting messages.
+- To read the current configuration from outside, send `{ type: 'ferrofluid:export' }`; the page replies to the sender with `{ type: 'ferrofluid:config', config }`.
+- Microphone permission can only be granted inside the iframe, when the user presses the microphone button. Show the controls with `{ type: 'ferrofluid:ui', visible: true }`.
+- If your script runs inside `index.html` itself, call `window.ferrofluid` directly instead of posting messages.
 
 ## API reference
 
-### JavaScript: `window.sigmaBrain`
+### JavaScript: `window.ferrofluid`
 
 | Member | Returns | Description |
 |---|---|---|
@@ -431,12 +431,10 @@ Good to know:
 | `style` | `string` | current render style (read-only) |
 | `setStyle(id)` | `boolean` | change the render style |
 
-`window.ferrofluido` is an alias of `window.sigmaBrain`.
-
 ```js
 // wait for a morph to finish
 const morphDone = () => new Promise((ok) => {
-  const tick = () => (sigmaBrain.progress >= 1 ? ok() : requestAnimationFrame(tick));
+  const tick = () => (ferrofluid.progress >= 1 ? ok() : requestAnimationFrame(tick));
   tick();
 });
 ```
@@ -447,19 +445,19 @@ Send these to the iframe's `contentWindow`. They work cross-origin.
 
 | `type` | Fields | Equivalent |
 |---|---|---|
-| `sigmabrain:state` | `name` (string or `null`) | `state(name)` |
-| `sigmabrain:capability` | `name` | `setCapability(name)` |
-| `sigmabrain:shape` | `source`, `options?` | `setShape(source, options)` |
-| `sigmabrain:spell` | `word`, `options?` | `spell(word, options)` |
-| `sigmabrain:sequence` | `items`, `options?` | `playSequence(items, options)` |
-| `sigmabrain:stop` | | stop sequence and Auto |
-| `sigmabrain:color` | `color` | `setColor(color)` |
-| `sigmabrain:colorMode` | `mode` | `setColorMode(mode)` |
-| `sigmabrain:style` | `style` | `setStyle(style)` |
-| `sigmabrain:ui` | `visible` | `ui(visible)` |
-| `sigmabrain:define` | `name` + `definition`, or `states` | `define()` / `defineStates()` |
-| `sigmabrain:config` | `config` (object or URL) | `importConfig(config)` |
-| `sigmabrain:export` | | replies `{ type: 'sigmabrain:config', config }` to the sender |
+| `ferrofluid:state` | `name` (string or `null`) | `state(name)` |
+| `ferrofluid:capability` | `name` | `setCapability(name)` |
+| `ferrofluid:shape` | `source`, `options?` | `setShape(source, options)` |
+| `ferrofluid:spell` | `word`, `options?` | `spell(word, options)` |
+| `ferrofluid:sequence` | `items`, `options?` | `playSequence(items, options)` |
+| `ferrofluid:stop` | | stop sequence and Auto |
+| `ferrofluid:color` | `color` | `setColor(color)` |
+| `ferrofluid:colorMode` | `mode` | `setColorMode(mode)` |
+| `ferrofluid:style` | `style` | `setStyle(style)` |
+| `ferrofluid:ui` | `visible` | `ui(visible)` |
+| `ferrofluid:define` | `name` + `definition`, or `states` | `define()` / `defineStates()` |
+| `ferrofluid:config` | `config` (object or URL) | `importConfig(config)` |
+| `ferrofluid:export` | | replies `{ type: 'ferrofluid:config', config }` to the sender |
 
 Message payloads must be serializable: pass a `File` or `Blob` to `setShape` from the same page instead.
 
@@ -506,6 +504,7 @@ To add a built-in shape: write an `sdName(vec3 p)` function in the shader, add a
 ├── docs/
 │   ├── demo.gif            # README animation
 │   └── screenshots/        # README images
+├── .nojekyll              # serve the files as is on GitHub Pages
 ├── LICENSE                 # Apache License 2.0
 ├── NOTICE
 └── README.md
