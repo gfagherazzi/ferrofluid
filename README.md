@@ -1,448 +1,537 @@
+<div align="center">
+
 # Sigma Brain
 
-Una massa di ferrofluido nero e lucido, resa in tempo reale nel browser, che si deforma con l'audio del microfono e cambia forma a seconda della *capability* in uso: cuore, pianeta, libro, foto, ingranaggio. Pensata come rappresentazione visiva di un assistente che "pensa" in modi diversi.
+**A glossy black ferrofluid that listens, and reshapes itself into whatever your assistant is doing.**
 
-Un solo file, `index.html`, senza dipendenze né build: WebGL2 + GLSL (ray marching di campi di distanza), Web Audio API per l'analisi del suono.
+Real-time, audio-reactive and embeddable. One HTML file, zero dependencies.
 
-| Cervello (riposo) | Chat | Web |
+[![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+![Dependencies: none](https://img.shields.io/badge/dependencies-none-brightgreen.svg)
+![WebGL2](https://img.shields.io/badge/WebGL-2.0-990000.svg)
+![No build step](https://img.shields.io/badge/build-none-lightgrey.svg)
+
+<img src="docs/demo.gif" width="560" alt="A glossy black blob morphing into a red heart, a blue ringed planet and a purple Σ, then back to a blob">
+
+[**Live demo**](https://gfagherazzi.github.io/ferrofluid/) · [Integration example](https://gfagherazzi.github.io/ferrofluid/examples/integration.html) · [Quick start](#quick-start) · [API](#api-reference)
+
+</div>
+
+---
+
+Sigma Brain renders a ferrofluid mass in the browser with WebGL2 (ray marching of signed distance fields) and drives it with the Web Audio API. It was designed as the visual "brain" of an AI assistant: the mass breathes with the microphone and morphs into a heart while chatting, a planet while searching the web, an open book while reading documents, or any icon you give it.
+
+> [!NOTE]
+> The on-screen interface is currently in **Italian**. Everything is documented here in English, with the Italian label next to each control (see the [UI glossary](#ui-glossary)). The JavaScript API, URL parameters and messages are in English.
+
+## Contents
+
+- [Features](#features)
+- [Gallery](#gallery)
+- [Quick start](#quick-start)
+- [Using the interface](#using-the-interface)
+- [Shapes](#shapes)
+- [Color](#color)
+- [Render styles (2D)](#render-styles-2d)
+- [States](#states)
+- [Configuration: tune, save, export](#configuration-tune-save-export)
+- [Embedding in your app](#embedding-in-your-app)
+- [API reference](#api-reference)
+- [How it works](#how-it-works)
+- [Browser support and performance](#browser-support-and-performance)
+- [Troubleshooting](#troubleshooting)
+- [Project structure](#project-structure)
+- [Contributing](#contributing)
+- [License](#license)
+- [Acknowledgements](#acknowledgements)
+
+## Features
+
+- **Audio-reactive**: microphone, audio file or a built-in synthetic beat; automatic gain and noise-floor tracking, 32 log-spaced bands.
+- **Seven shapes with fluid morphing**: free blob, heart, ringed planet, open book, photo, gear, plus any custom shape. Each one reacts to sound in its own way.
+- **Any silhouette becomes fluid**: emoji, text, SVG path, SVG markup or image (PNG/JPG/WebP). Words can be spelled letter by letter and shapes played as sequences.
+- **States vocabulary**: map your app's activities to choreographies (`thinking`, `searching`, `reading`, …) and trigger them with a single call.
+- **Dynamic color**: per state, driven by the audio spectrum, or fixed; optional iridescent thin-film.
+- **2D render styles**: flat fill, two-tone illustration, or outline only, on the same animated shape.
+- **Ferrofluid spikes**: optional Rosensweig instability above a critical "field" threshold.
+- **Design in the UI, ship as JSON**: tune everything in the panel, save states, export a config file, load it in production.
+- **Embeddable**: iframe + `postMessage`, URL parameters, or a JavaScript API.
+- **Zero dependencies, no build**: a single `index.html`; adaptive resolution; respects `prefers-reduced-motion`.
+
+## Gallery
+
+| Brain (idle) | Chat | Web |
 |---|---|---|
-| ![](docs/cervello.png) | ![](docs/chat-cuore.png) | ![](docs/web-pianeta.png) |
+| ![Glossy black blob](docs/screenshots/brain.png) | ![Coral-tinted heart](docs/screenshots/chat-heart.png) | ![Blue planet with two rings](docs/screenshots/web-planet.png) |
 
-| Immagini | Strumenti | Iridescenza |
+| Images | Tools | Iridescence |
 |---|---|---|
-| ![](docs/immagini-foto.png) | ![](docs/strumenti-ingranaggio.png) | ![](docs/iridescenza.png) |
+| ![Photo frame with sun and mountains in relief](docs/screenshots/images-photo.png) | ![Gear with ten teeth](docs/screenshots/tools-gear.png) | ![Blob with an iridescent thin-film sheen](docs/screenshots/iridescence.png) |
 
-| Forma esterna: `setShape('Σ')` | Forma esterna: `setShape('★')` | Forma esterna: SVG |
+| Custom shape `setShape('Σ')` | Custom shape `setShape('★')` | Custom shape from SVG |
 |---|---|---|
-| ![](docs/forma-sigma.png) | ![](docs/forma-stella.png) | ![](docs/forma-svg.png) |
+| ![Extruded Sigma letter](docs/screenshots/shape-sigma.png) | ![Extruded star](docs/screenshots/shape-star.png) | ![Extruded circle and rounded rectangle](docs/screenshots/shape-svg.png) |
 
-| Resa Piatto | Resa Due toni | Resa Contorno |
+| Flat | Two-tone | Outline |
 |---|---|---|
-| ![](docs/resa-piatto.png) | ![](docs/resa-due-toni.png) | ![](docs/resa-contorno.png) |
+| ![Flat grey silhouette](docs/screenshots/style-flat.png) | ![Two-tone red silhouette](docs/screenshots/style-two-tone.png) | ![Outline of the blob](docs/screenshots/style-outline.png) |
 
-## Indice
+## Quick start
 
-- [Avvio](#avvio)
-- [Guida all'integrazione](#guida-allintegrazione)
-- [Sorgenti audio](#sorgenti-audio)
-- [Capability](#capability)
-- [Forma esterna](#forma-esterna)
-- [Vocabolario di stati](#vocabolario-di-stati)
-- [Configurazione: prova, salva, esporta](#configurazione-prova-salva-esporta)
-- [Colore](#colore)
-- [Resa 2D](#resa-2d)
-- [Parametri](#parametri)
-- [Comandi](#comandi)
-- [API JavaScript](#api-javascript)
-- [Come funziona](#come-funziona)
-- [Prestazioni e compatibilità](#prestazioni-e-compatibilità)
-- [Struttura del progetto](#struttura-del-progetto)
-
-## Avvio
-
-Apri `index.html` in Chrome, Edge, Firefox o Safari. Parte in modalità **Demo** (batteria sintetica a 112 bpm); premi **Microfono** o il tasto `M` e concedi il permesso.
-
-Il microfono richiede un contesto sicuro. Chrome lo accetta anche da `file://`; se il browser rifiuta, servi la cartella in locale:
+**Run it locally**
 
 ```bash
-python3 -m http.server 8000      # oppure: npx serve .
+git clone https://github.com/gfagherazzi/ferrofluid.git
+cd ferrofluid
+python3 -m http.server 8000      # or: npx serve .
 ```
 
-e apri `http://localhost:8000`. Online va pubblicata su `https` (GitHub Pages, Netlify, Vercel: è un file statico).
+Open <http://localhost:8000>. The page starts in **Demo** mode (a synthetic 112 bpm beat); press the microphone button (*Microfono*) or <kbd>M</kbd> and allow access.
 
-## Guida all'integrazione
+You can also double-click `index.html`: Chrome and Edge allow the microphone on `file://`, other browsers may not. Browsers only grant the microphone on `https://` or `localhost`.
 
-Per chi riceve il progetto e vuole usarlo nella propria app, in cinque passi. Il resto del README è il riferimento completo.
+**Publish it**
 
-### 1. Cosa serve
+It is a static site, so any static host works:
 
-- `index.html` è tutto il programma: nessuna dipendenza, nessuna build, nessun server applicativo. `docs/` contiene solo gli screenshot di questo README, `examples/` una pagina ospite di esempio.
-- Un browser con WebGL2 (Chrome, Edge, Firefox, Safari 15+). Basta una GPU modesta: su macchine lente la qualità *Auto* abbassa la risoluzione da sola.
+- **GitHub Pages**: *Settings → Pages → Build and deployment → Deploy from a branch → `main` / `(root)`*. The page will be served at `https://<user>.github.io/<repo>/`.
+- **Netlify, Vercel, Cloudflare Pages, S3, nginx**: upload the repository as is. There is no build step.
 
-### 2. Pubblicarlo
+## Using the interface
 
-Il microfono funziona solo da `https` o da `localhost`. Tre opzioni:
+### Audio sources
 
-- **GitHub Pages**: nella repo, *Settings → Pages → Branch `main`, cartella `/ (root)`*. La pagina sarà `https://<utente>.github.io/<repo>/`.
-- **Hosting statico** (Netlify, Vercel, S3, nginx): basta copiare i file.
-- **In locale**: `python3 -m http.server 8000` nella cartella, poi `http://localhost:8000`.
+| Source | How |
+|---|---|
+| Microphone (*Microfono*) | button in the bottom dock or <kbd>M</kbd>; the browser asks for permission |
+| Audio file (*File audio*) | button in the dock, or drag an mp3/wav/ogg/flac/m4a onto the page; <kbd>Space</kbd> pauses |
+| Demo | synthetic kick, snare, hi-hat and pad; active on load; <kbd>D</kbd> |
 
-### 3. Incorporarlo nella propria pagina
+The level is normalized with automatic gain and noise-floor subtraction, so the fluid reacts to a whisper as well as to loud music. *Sensibilità* (Sensitivity) scales it by hand. The dock shows the "B field" (the normalized level, displayed as 0–96 mT), the input level in dBFS and a 32-band spectrum.
+
+### Keyboard and gestures
+
+| Input | Action |
+|---|---|
+| drag | rotate the mass |
+| mouse wheel / pinch | size |
+| double-click | reset view and size |
+| <kbd>1</kbd>–<kbd>7</kbd> | switch capability (7 = custom shape) |
+| <kbd>A</kbd> | cycle through capabilities automatically |
+| <kbd>M</kbd> / <kbd>D</kbd> | microphone / demo |
+| <kbd>Space</kbd> | play/pause the audio file |
+| <kbd>P</kbd> | parameters panel |
+| <kbd>H</kbd> | hide/show all controls |
+| <kbd>F</kbd> | fullscreen |
+
+### Parameters
+
+Open the panel with *Parametri* (<kbd>P</kbd>). Settings persist in the browser (`localStorage`); *Ripristina valori* (Reset values) restores the defaults.
+
+| Group | Parameter | Default | Effect |
+|---|---|---|---|
+| Mass (*Massa*) | Size (*Dimensione*) | 100% | 50–180%, also with wheel and pinch |
+| | Sensitivity (*Sensibilità*) | 1.00× | gain on the normalized level, 0.2–3× |
+| | Deformation (*Deformazione*) | 65% | how far the lobes move away from the core (brain shape) |
+| | Viscosity (*Viscosità*) | 50% | attack and release time; higher reacts and settles more slowly |
+| | Auto-rotation (*Rotazione automatica*) | 30% | spin speed of the brain shape |
+| Rosensweig instability | Magnetic spikes (*Punte magnetiche*) | 0% | spike height above the threshold; 0 keeps the surface smooth |
+| | Critical threshold Bc (*Soglia critica Bc*) | 28 mT | level above which spikes appear |
+| | Spike count (*Numero di punte*) | 200 | 80–420, on a spherical Fibonacci lattice |
+| | Spike base (*Base delle punte*) | 90% | width of each spike's base |
+| Color (*Colore*) | Source, fixed color, Intensity, Iridescence | Capability, 80%, 0% | see [Color](#color) |
+| External shape (*Forma esterna*) | Thickness, Rounding, Engraving, Reactivity | 0.22, 60%, 56%, 60% | see [Custom shapes](#custom-shapes) |
+| Studio | Render style (*Resa*), Outline (*Contorno*) | 3D, 0 px | see [Render styles](#render-styles-2d) |
+| | Backdrop (*Fondale*) | Light | light or dark studio |
+| | Quality (*Qualità*) | Auto | Auto adapts resolution to keep ~60 fps; High, Medium, Low are fixed |
+
+The *Stati* (States) and *Configurazione* (Configuration) groups are described in [States](#states) and [Configuration](#configuration-tune-save-export).
+
+### UI glossary
+
+<details>
+<summary>Italian labels → English</summary>
+
+| Italian | English |
+|---|---|
+| Microfono · File audio · Demo | Microphone · Audio file · Demo |
+| Campo B | B field (normalized level) |
+| Parametri | Parameters |
+| Cervello · Chat · Web · Documenti · Immagini · Strumenti · Forma | Brain · Chat · Web · Documents · Images · Tools · Shape |
+| Massa · Dimensione · Sensibilità · Deformazione · Viscosità · Rotazione automatica | Mass · Size · Sensitivity · Deformation · Viscosity · Auto-rotation |
+| Instabilità di Rosensweig · Punte magnetiche · Soglia critica Bc · Numero di punte · Base delle punte | Rosensweig instability · Magnetic spikes · Critical threshold Bc · Spike count · Spike base |
+| Colore · Sorgente · Nero / Capability / Audio / Fisso · Colore fisso · Intensità · Iridescenza | Color · Source · Black / Capability / Audio / Fixed · Fixed color · Intensity · Iridescence |
+| Forma esterna · Emoji, testo o path SVG · Applica · Carica… · Parola o sequenza · Avvia / Ferma | External shape · Emoji, text or SVG path · Apply · Load… · Word or sequence · Start / Stop |
+| Spessore · Arrotondamento · Incisione · Reattività | Thickness · Rounding · Engraving · Reactivity |
+| Studio · Resa: 3D / Piatto / Due toni / Contorno · Contorno · Fondale: Chiaro / Scuro · Qualità: Auto / Alta / Media / Bassa | Studio · Render style: 3D / Flat / Two-tone / Outline · Outline · Backdrop: Light / Dark · Quality: Auto / High / Medium / Low |
+| Stati · × nessuno | States · × none |
+| Configurazione · Salva stato · Esporta JSON · Copia JSON · Importa… · Elimina stato attivo | Configuration · Save state · Export JSON · Copy JSON · Import… · Delete active state |
+| Ripristina valori | Reset values |
+
+</details>
+
+## Shapes
+
+### Capabilities
+
+Seven shapes, selectable from the left rail (a horizontal strip on phones), with <kbd>1</kbd>–<kbd>7</kbd> or through the API. *Auto* (<kbd>A</kbd>) cycles through them every 4.5 s.
+
+| # | id | Shape | Audio reaction | Color (Capability mode) |
+|---|---|---|---|---|
+| 1 | `brain` | free blob (idle) | lobes, folds and ripples; spins | slate grey |
+| 2 | `chat` | heart | beats with the bass | coral red |
+| 3 | `web` | planet with two rings | relief rotates, pulses with the bass | blue |
+| 4 | `docs` | open book | opens wider with the volume | amber |
+| 5 | `images` | photo with sun and mountains in relief | sways slowly | teal |
+| 6 | `tools` | gear | spins faster with the volume | orange |
+| 7 | `custom` | any silhouette (see below) | pulses with the bass, thickness breathes with the volume | violet |
+
+A morph takes 1.4 s: halfway through, the fluid "melts" and reforms into the new shape. Shapes other than the brain sway by ±16° instead of spinning, so they keep facing the viewer; you can still rotate them by dragging.
+
+### Custom shapes
+
+The `custom` shape takes its silhouette from an external graphic and turns it into a 3D fluid mass. It starts with the Σ of Sigma.
+
+| Source | Example |
+|---|---|
+| emoji or short text (up to 12 characters) | `🚀`, `Σ`, `★`, `AI` |
+| SVG path (`d` attribute) | `M12 2L2 22h20Z` |
+| SVG markup | `<svg viewBox="0 0 100 100">…</svg>` |
+| image (PNG, JPG, WebP) | file, URL or data URI; transparent images use alpha, opaque ones are read as a dark silhouette on a light background |
+
+In the panel (*Forma esterna*): a text field with presets (Σ ★ ⚡ 🚀 🧠 and a path), *Carica…* (Load…) for SVG or image files, and four sliders:
+
+- **Thickness** (*Spessore*): extrusion depth.
+- **Rounding** (*Arrotondamento*): how much the edges bulge. It is capped automatically by the thinnest strokes, so line icons do not vanish.
+- **Engraving** (*Incisione*): darker areas of the image are carved into the front face, such as the eyes and mouth of 😄 or the details of a color logo. It has no effect on text, paths and single-color SVGs.
+- **Reactivity** (*Reattività*): how much the shape pulses with the bass, breathes with the volume and ripples with the treble.
+
+You can also drag an SVG or PNG onto the page.
+
+<img src="docs/screenshots/engrave-smiley.png" width="420" alt="A smiley face whose eyes and mouth are engraved into the front of the fluid disc">
+
+What works best: glyphs and icons with a distinctive silhouette (★ ⚡ 🚀 🔍 📄 💬 ❤, line icons such as Lucide or Feather, logos). Emoji that are colored discs (😄 🧠 🌍) rely on engraving to be recognizable and stay less legible than a clear silhouette.
+
+Text sources (emoji, text, path, SVG) are remembered by the browser; images loaded from a file are kept as a data URI up to 400 KB.
+
+### Words and sequences
+
+*Parola o sequenza* (Word or sequence) in the same panel group: a single word (`SIGMA`) is spelled letter by letter and ends on the whole word; comma-separated items (`🔍, 📄, 💬`) loop until you press *Ferma* (Stop), pick another capability or load another shape. The pace follows animation time, so every morph completes before the next one starts.
+
+<img src="docs/screenshots/spell-si.png" width="420" alt="The word SI formed by the fluid at the end of a spell sequence">
+
+```js
+sigmaBrain.spell('SIGMA');                                   // S, I, G, M, A, then SIGMA
+sigmaBrain.spell('HELLO', { interval: 1, whole: false });    // letters only
+sigmaBrain.playSequence(['🔍', '📄', '💬'], { interval: 2 }); // loops (loop: true by default)
+sigmaBrain.playSequence('★, Σ, ⚡', { loop: false });         // comma-separated string, played once
+sigmaBrain.playSequence(['web', '🔍']);                       // capability ids can be mixed in
+sigmaBrain.stopSequence();
+```
+
+## Color
+
+Choose the tint source in *Colore → Sorgente*:
+
+| Source | Behavior |
+|---|---|
+| Black (*Nero*) | black body with white reflections (the original look) |
+| Capability | one color per shape (see the [capabilities table](#capabilities)); this is the default |
+| Audio | hue follows the spectral centroid (bass → red, mids → yellow/green, treble → blue/violet); intensity rises with the volume |
+| Fixed (*Fisso*) | the color from the picker or the API |
+
+**Intensity** sets how much the tint enters the body and the reflections. **Iridescence** adds a thin-film sheen whose color depends on the viewing angle; it also works in Black mode. The dot next to the state name (top left) shows the current color.
+
+## Render styles (2D)
+
+The same shape and animation can be painted flat, for interfaces where a glossy 3D object does not fit: a chat avatar, a large icon, print graphics.
+
+| Style | id | Look |
+|---|---|---|
+| 3D | `3d` | the glossy ferrofluid with reflections (default) |
+| Flat (*Piatto*) | `flat` | uniform fill with an anti-aliased edge: black on a light backdrop, white on a dark one, or the current tint |
+| Two-tone (*Due toni*) | `toon` | flat plus a lit side with a crisp terminator, illustration style; iridescence becomes a tint that follows the normal |
+| Outline (*Contorno*) | `outline` | only the stroke around the silhouette |
+
+**Outline** (0–12 px) adds a stroke to Flat and Two-tone too; the Outline style uses at least 2 px. The stroke is drawn outside the silhouette. Everything else (color, capabilities, custom shapes, sequences, spikes) works the same; a custom shape in Flat style is effectively an icon animated by sound.
+
+Select it in *Studio → Resa*, with `?style=flat` in the URL, with `sigmaBrain.setStyle('flat')` or with the `style` key of a state.
+
+## States
+
+States are the layer meant for your app. A **state** is a name (`searching`, `answering`, …) that bundles a shape or sequence, a color, parameters and a label. Your app only calls `sigmaBrain.state('searching')`; the whole choreography lives in JSON.
+
+The default vocabulary is defined in the `<script type="application/json" id="states-json">` block of `index.html` (edit it without touching the code): `idle`, `thinking`, `answering`, `searching`, `reading`, `looking`, `coding`, `greeting`, `error`, `done`. Try them from *Parametri → Stati*, or open `index.html#searching`.
+
+A state definition (all keys optional):
+
+| Key | Value |
+|---|---|
+| `capability` | a built-in shape: `brain`, `chat`, `web`, `docs`, `images`, `tools` |
+| `shape` | a custom-shape source (emoji, text, path, SVG, image) |
+| `sequence` | list of sources or capability ids, looped |
+| `spell` | a word spelled letter by letter |
+| `interval`, `loop`, `whole` | pace and repetition of sequences and words |
+| `color` | `#rrggbb` (fixed color), or `capability`, `audio`, `none` |
+| `intensity`, `iridescence` | tint and thin-film amount, 0–1 |
+| `size`, `spikes`, `bc`, `density`, `width`, `morph`, `visc`, `spin` | mass and spike parameters (same ranges as the panel) |
+| `thickness`, `rounding`, `engrave`, `react` | custom-shape parameters |
+| `studio` | `light` or `dark` |
+| `style`, `outline` | render style (`3d`, `flat`, `toon`, `outline`) and outline width in px |
+| `label` | text shown next to the colored dot, top left |
+
+If several of `spell`, `sequence`, `shape` and `capability` are present, the first one in this order wins. State parameters are overrides on top of the base settings: the next state (or `state(null)`) reverts them, and the browser always stores the base values.
+
+```js
+sigmaBrain.state('searching');
+sigmaBrain.define('celebrating', { spell: 'WOW', color: '#ffd400', iridescence: 0.6, label: 'Hooray' });
+sigmaBrain.defineStates({ /* several at once */ });
+await sigmaBrain.loadStates('/states.json');   // from a JSON file
+sigmaBrain.state(null);                        // leave the active state
+```
+
+## Configuration: tune, save, export
+
+The intended workflow: tune everything in the interface, save each combination as a state, export a JSON file, give it to the page that renders in production.
+
+1. Adjust shape, color and parameters in the panel.
+2. In *Parametri → Configurazione* type a name (e.g. `searching`) and press *Salva stato* (Save state). The current situation (shape or running sequence, color, all parameters) becomes a state definition.
+3. Repeat for each state. *Elimina stato attivo* (Delete active state) removes the selected one.
+4. *Esporta JSON* (Export JSON) downloads `sigma-brain.config.json`; *Copia JSON* copies it to the clipboard; *Importa…* (Import…) loads an exported file.
+
+Load the file in production with any of:
+
+```text
+index.html?config=sigma-brain.config.json
+```
+
+```js
+await sigmaBrain.importConfig(json);   // object, or URL of a JSON file
+iframe.contentWindow.postMessage({ type: 'sigmabrain:config', config: json }, '*');
+```
+
+<details>
+<summary>Configuration file format</summary>
+
+```jsonc
+{
+  "sigmaBrain": 1,                       // format version
+  "exported": "2026-11-11T10:00:00.000Z",
+  "settings": {                          // base values of every parameter
+    "sens": 1, "morph": 0.65, "visc": 0.5, "spin": 0.3,
+    "spikes": 0, "bc": 0.35, "density": 200, "width": 0.9,
+    "studio": "light", "quality": "auto", "size": 1,
+    "colorMode": "capability", "color": "#2f7cff", "tintAmt": 0.8, "irid": 0,
+    "style": "3d", "outline": 0,
+    "shapeThick": 0.22, "shapeRound": 0.6, "shapeEngrave": 0.045, "shapeReact": 0.6
+  },
+  "capability": "brain",                 // shape shown when no state is active
+  "shape": "Σ",                          // current custom-shape source (string or object)
+  "state": "idle",                       // state to apply after loading, or null
+  "states": { "idle": { "capability": "brain", "label": "In ascolto" } }
+}
+```
+
+Unknown keys and out-of-range values are ignored or clamped on import. Images loaded from a file are embedded as data URIs (up to 400 KB); SVG and paths as text.
+
+</details>
+
+## Embedding in your app
+
+### 1. Add the iframe
 
 ```html
-<iframe id="brain" src="https://…/index.html?ui=off#idle" allow="microphone"
+<iframe id="brain" src="https://<user>.github.io/<repo>/index.html?ui=off#idle"
+        allow="microphone" title="Sigma Brain"
         style="width:100%;height:480px;border:0;background:#d7d7d5"></iframe>
 ```
 
-- `allow="microphone"` è obbligatorio perché l'iframe possa chiedere il permesso del microfono; senza, restano disponibili i file audio e la demo.
-- Parametri dell'URL, combinabili: `?ui=off` nasconde tutti i comandi (resta solo il fluido), `?studio=dark` fondale scuro, `?style=flat` (o `toon`, `outline`) resa 2D, `?config=tuo.json` carica una configurazione esportata, `#idle` (o qualsiasi stato o capability) è lo stato iniziale. Esempio: `index.html?ui=off&studio=dark&config=sigma.json#idle`.
-- Il fluido è centrato nell'area dell'iframe; la dimensione si regola con il parametro `size` della configurazione (o con la rotella, se i comandi sono visibili).
+`allow="microphone"` is required for the iframe to ask for microphone permission; without it, audio files and the demo still work.
 
-### 4. Pilotarlo dall'app
+### 2. URL parameters
 
-Tre canali equivalenti:
+| Parameter | Effect |
+|---|---|
+| `?ui=off` | hide every control, show only the fluid |
+| `?studio=dark` / `light` | backdrop |
+| `?style=flat` / `toon` / `outline` / `3d` | render style |
+| `?config=file.json` | load an exported configuration (same-origin or CORS-enabled URL) |
+| `#idle`, `#searching`, `#web`, `#custom`, … | initial state or capability |
 
-| Canale | Quando | Esempio |
-|---|---|---|
-| `postMessage` | il fluido è in un iframe, anche su un altro dominio | `frame.contentWindow.postMessage({ type: 'sigmabrain:state', name: 'searching' }, '*')` |
-| `window.sigmaBrain` | lo script gira dentro `index.html` (per esempio aggiunto in fondo al file) | `sigmaBrain.state('searching')` |
-| URL | stato iniziale, senza script | `index.html#searching`, `index.html?config=sigma.json` |
+They combine: `index.html?ui=off&studio=dark&style=flat&config=sigma.json#idle`.
 
-Nella maggior parte dei casi basta un solo comando, lo **stato**: `idle`, `thinking`, `answering`, `searching`, `reading`, `looking`, `coding`, `greeting`, `error`, `done` (vedi [Vocabolario di stati](#vocabolario-di-stati)). Esempio completo:
+### 3. Drive it from your app
+
+Most apps need a single message, the **state**:
 
 ```html
-<iframe id="brain" src="sigma-brain/index.html?ui=off#idle" allow="microphone"
-        style="width:100%;height:480px;border:0"></iframe>
 <script>
   const frame = document.getElementById('brain');
   const ready = new Promise((ok) => frame.addEventListener('load', ok, { once: true }));
   async function send(msg) { await ready; frame.contentWindow.postMessage(msg, '*'); }
 
-  // eventi della tua app → stati del fluido
+  // your app's events → fluid states
   const MAP = { idle: 'idle', thinking: 'thinking', reply: 'answering', web: 'searching',
                 files: 'reading', vision: 'looking', code: 'coding', error: 'error', done: 'done' };
   function brain(event) { return send({ type: 'sigmabrain:state', name: MAP[event] || 'idle' }); }
 
-  // oppure, senza stati: una forma, un colore, una parola
+  // or, without states: a shape, a color, a word
   send({ type: 'sigmabrain:shape', source: '🚀' });
   send({ type: 'sigmabrain:color', color: '#ff0066' });
-  send({ type: 'sigmabrain:spell', word: 'CIAO' });
+  send({ type: 'sigmabrain:spell', word: 'HELLO' });
 </script>
 ```
 
-`examples/integrazione.html` è questa pagina già pronta, con i pulsanti per tutti gli stati, una conversazione simulata e il registro dei messaggi: aprila da un server locale (`http://localhost:8000/examples/integrazione.html`).
+[`examples/integration.html`](examples/integration.html) is this page, ready to run: buttons for every state, a simulated conversation and a message log. Serve the repository and open `http://localhost:8000/examples/integration.html`.
 
-Da sapere:
+Good to know:
 
-- i messaggi inviati prima che l'iframe abbia finito di caricare vanno persi: aspetta l'evento `load` come nell'esempio;
-- `'*'` come origine va bene per iniziare; in produzione indica l'origine della pagina del fluido;
-- per leggere lo stato corrente dall'esterno: `send({ type: 'sigmabrain:export' })` risponde alla finestra chiamante con `{ type: 'sigmabrain:config', config }`;
-- il permesso del microfono lo chiede il browser quando l'utente preme **Microfono** dentro il fluido (i comandi si mostrano con `{ type: 'sigmabrain:ui', visible: true }`); non si può concedere da fuori.
+- Messages sent before the iframe's `load` event are lost; wait for it as above.
+- `'*'` as target origin is fine to start with; in production pass the fluid page's origin.
+- The page accepts messages from **any** origin, by design, because it is meant to be embedded anywhere. Do not put secrets in states or configurations.
+- To read the current configuration from outside, send `{ type: 'sigmabrain:export' }`; the page replies to the sender with `{ type: 'sigmabrain:config', config }`.
+- Microphone permission can only be granted inside the iframe, when the user presses the microphone button. Show the controls with `{ type: 'sigmabrain:ui', visible: true }`.
+- If your script runs inside `index.html` itself, call `window.sigmaBrain` directly instead of posting messages.
 
-Tutti i tipi di messaggio: `sigmabrain:state`, `sigmabrain:capability`, `sigmabrain:shape`, `sigmabrain:spell`, `sigmabrain:sequence`, `sigmabrain:stop`, `sigmabrain:color`, `sigmabrain:colorMode`, `sigmabrain:define`, `sigmabrain:config`, `sigmabrain:export`, `sigmabrain:ui`, `sigmabrain:style`. I campi di ciascuno sono in [API JavaScript](#api-javascript).
+## API reference
 
-### 5. Personalizzarlo
+### JavaScript: `window.sigmaBrain`
 
-- **Stati**: il blocco `<script type="application/json" id="states-json">` in `index.html`; ogni stato unisce forma o sequenza, colore, parametri ed etichetta. Oppure dall'app, con `{ type: 'sigmabrain:define', states: { … } }`.
-- **Senza toccare il codice**: apri la pagina con l'interfaccia, regola i parametri, *Salva stato*, *Esporta JSON*, poi `?config=tuo.json` (vedi [Configurazione](#configurazione-prova-salva-esporta)).
-- **Forme**: qualsiasi emoji, testo, path, SVG o immagine (vedi [Forma esterna](#forma-esterna)). Le icone SVG della tua app sono il materiale migliore.
-- **Colori dell'interfaccia e fondale**: token CSS in cima a `index.html` (`:root` e `body[data-studio="dark"]`); il colore di sfondo del canvas è `--stage`.
-- **Nuove forme matematiche**: una funzione SDF nello shader e una riga in `CAPS` (vedi [Come funziona](#come-funziona)).
-
-### Se qualcosa non va
-
-| Sintomo | Causa e rimedio |
-|---|---|
-| Il microfono non si attiva | serve `https` o `localhost`; nell'iframe serve `allow="microphone"`; dentro un'anteprima o un sandbox il microfono è bloccato: apri `index.html` direttamente |
-| «Il browser blocca la lettura di questa immagine (CORS)» | l'immagine viene da un altro dominio senza intestazioni CORS: scaricala e caricala come file, oppure usa un data URI |
-| Un'emoji è un disco irriconoscibile | la sua silhouette è un disco: alza **Incisione**, oppure scegli un glifo con sagoma distintiva (★ ⚡ 🚀 🔍 📄) |
-| Va a scatti | qualità su *Auto* oppure *Media*/*Bassa*; le forme esterne costano un po' più delle altre |
-| «WEBGL2 NON DISPONIBILE» | browser o GPU senza WebGL2: aggiorna il browser o abilita l'accelerazione hardware |
-| I `postMessage` non fanno nulla | inviati prima del `load` dell'iframe, oppure `type` scritto male (vedi l'elenco sopra) |
-| Le impostazioni cambiano da sole | il browser ricorda le ultime impostazioni (`localStorage`): *Ripristina valori* nel pannello, oppure passa sempre una `?config=` |
-
-## Sorgenti audio
-
-| Sorgente | Come |
-|---|---|
-| Microfono | pulsante **Microfono** o tasto `M`; il browser chiede il permesso |
-| File audio | pulsante **File audio**, oppure trascina un mp3/wav/ogg/flac/m4a sulla pagina; `Spazio` mette in pausa |
-| Demo | batteria sintetica, attiva all'apertura; tasto `D` |
-
-Il livello è normalizzato con guadagno automatico e sottrazione del rumore di fondo, quindi reagisce sia a una voce sussurrata sia alla musica alta. Il cursore **Sensibilità** lo scala a mano. Il dock mostra il "campo B" (livello normalizzato, 0–96 mT), i dBFS in ingresso e lo spettro a 32 bande.
-
-## Capability
-
-Sei stati, selezionabili dalla barra a sinistra (sul telefono: striscia sotto l'intestazione), con i tasti `1`–`6` o via API. **Auto** (tasto `A`) li alterna ogni 4,5 secondi.
-
-| # | id | Forma | Reazione all'audio | Colore (modalità Capability) |
-|---|---|---|---|---|
-| 1 | `brain` | massa libera (riposo) | lobi, pieghe e increspature; ruota su sé stessa | grigio ardesia |
-| 2 | `chat` | cuore | batte con i bassi | rosso corallo |
-| 3 | `web` | pianeta con due anelli | rilievi che ruotano, pulsa con i bassi | blu |
-| 4 | `docs` | libro aperto | si apre di più con il volume | ambra |
-| 5 | `images` | foto con sole e montagne in rilievo | oscilla lentamente | verde acqua |
-| 6 | `tools` | ingranaggio | gira più veloce con il volume | arancio |
-| 7 | `custom` | **forma esterna**: qualsiasi silhouette (vedi sotto) | pulsa con i bassi, lo spessore respira col volume, increspature; slider **Reattività** | viola |
-
-La transizione tra due forme dura 1,4 s: il fluido si "scioglie" a metà strada e si ricompone nella forma nuova. Nelle forme il corpo resta vivo (onde e increspature attenuate) e oscilla di ±16° invece di ruotare, così resta rivolto verso chi guarda. Trascinando si ruota comunque a mano; doppio clic riporta la vista al centro.
-
-## Forma esterna
-
-Lo stato **Forma** (tasto `7`) prende la silhouette da un riferimento grafico fornito dall'esterno e la trasforma in una massa liquida 3D. All'apertura contiene la Σ di Sigma.
-
-Sorgenti accettate:
-
-| Sorgente | Esempio |
-|---|---|
-| emoji o testo breve (max 12 caratteri) | `🚀`, `Σ`, `★`, `AI` |
-| path SVG (attributo `d`) | `M12 2L2 22h20Z` |
-| SVG completo | `<svg viewBox="0 0 100 100">…</svg>` |
-| immagine PNG/JPG/WebP | file, URL o data URI; con trasparenza usa l'alpha, altrimenti legge la silhouette scura su fondo chiaro |
-
-Dal pannello **Parametri → Forma esterna**: campo di testo con preset (Σ ★ ⚡ 🚀 🧠 e un path), pulsante **Carica…** per file SVG o immagine, slider **Spessore** (profondità dell'estrusione), **Arrotondamento** (quanto i bordi si gonfiano; limitato automaticamente dallo spessore dei tratti più sottili, così le icone a linea non spariscono) e **Incisione** (le zone più scure dell'immagine vengono incise sulla faccia frontale: gli occhi e la bocca di 😄, le pieghe di 🧠, i dettagli di un logo a colori; non agisce su testo, path e SVG monocromatici) e **Reattività** (quanto la forma pulsa con i bassi, respira con il volume e si increspa con gli acuti). Si può anche trascinare un SVG o un PNG sulla pagina.
-
-Cosa funziona meglio: glifi e icone con una silhouette riconoscibile (★ ⚡ 🚀 🔍 📄 💬 ❤, icone a linea tipo Lucide/Feather, loghi). Le emoji che sono dischi colorati (😄 🧠 🌍) si riconoscono grazie all'incisione dei dettagli scuri, ma restano meno leggibili di una silhouette.
-
-Come funziona: la silhouette viene disegnata su un canvas, ritagliata e centrata; a risoluzione 768×768 si calcola la trasformata di distanza esatta (Felzenszwalb–Huttenlocher) dentro e fuori, corretta sul bordo con la copertura anti-aliasata del pixel; il campo viene ridotto a 384×384 con media e una sfocatura leggera (che toglie la scalettatura dei texel senza spostare il bordo e mantiene il campo 1-Lipschitz) e caricato come texture half-float a due canali: distanza con segno e scurezza relativa alla luminanza media della silhouette. Lo shader legge il campo 2D, lo estrude in profondità con bordi arrotondati, arretra la faccia frontale dove l'immagine è scura e applica le stesse onde e increspature delle altre forme. Due texture si alternano, quindi anche il passaggio da una forma esterna all'altra è una transizione fluida.
-
-Le sorgenti testuali (emoji, path, SVG) restano salvate nel browser e vengono ricaricate all'apertura; le immagini da file vengono conservate come data URI fino a 400 KB, oltre no.
-
-### Sequenze e parole
-
-Nello stesso gruppo del pannello, **Parola o sequenza**: una parola (`SIGMA`) viene scritta lettera per lettera e chiusa con la parola intera; più voci separate da virgola (`🔍, 📄, 💬`) si alternano in ciclo finché non si preme **Ferma**, si sceglie un'altra capability o si carica un'altra forma. Il ritmo segue il tempo dell'animazione, quindi ogni transizione finisce prima che parta la successiva.
-
-Via API:
-
-```js
-sigmaBrain.spell('SIGMA');                                   // S, I, G, M, A, poi SIGMA
-sigmaBrain.spell('CIAO', { interval: 1, whole: false });     // solo le lettere
-sigmaBrain.playSequence(['🔍', '📄', '💬'], { interval: 2 }); // in ciclo (loop: true di default)
-sigmaBrain.playSequence('★, Σ, ⚡', { loop: false });         // stringa separata da virgole, una volta sola
-sigmaBrain.stopSequence();
-sigmaBrain.sequence;   // { index, length, loop, interval } oppure null
-```
-
-Ogni voce accetta le stesse sorgenti di `setShape` (emoji, testo, path, SVG, immagine) oppure l'id di una capability (`'web'`, `'chat'`, …), così una sequenza può alternare forme matematiche e forme esterne.
-
-## Vocabolario di stati
-
-Il livello pensato per l'app: uno **stato** è un nome (`searching`, `answering`, …) che raggruppa forma o sequenza, colore, parametri ed etichetta. Dall'app si chiama solo `sigmaBrain.state('searching')`; tutta la coreografia sta in un JSON.
-
-Il vocabolario di default è nel blocco `<script type="application/json" id="states-json">` della pagina (modificabile senza toccare il codice) e comprende `idle`, `thinking`, `answering`, `searching`, `reading`, `looking`, `coding`, `greeting`, `error`, `done`. Nel pannello **Parametri → Stati** ci sono i pulsanti per provarli; `#searching` nell'URL apre direttamente in quello stato.
-
-Definizione di uno stato (tutte le chiavi sono facoltative):
-
-| Chiave | Valore |
-|---|---|
-| `capability` | id di una forma matematica: `brain`, `chat`, `web`, `docs`, `images`, `tools` |
-| `shape` | sorgente di forma esterna (emoji, testo, path, SVG, immagine) |
-| `sequence` | lista di sorgenti o id di capability, alternati in ciclo |
-| `spell` | parola scritta lettera per lettera |
-| `interval`, `loop`, `whole` | ritmo e ripetizione di sequenze e parole |
-| `color` | `#rrggbb` (colore fisso), oppure `capability`, `audio`, `none` |
-| `intensity`, `iridescence` | tinta e pellicola iridescente, 0–1 |
-| `size`, `spikes`, `bc`, `density`, `width`, `morph`, `visc`, `spin` | parametri della massa e delle punte |
-| `thickness`, `rounding`, `engrave`, `react` | parametri della forma esterna (spessore, arrotondamento, incisione, reattività all'audio) |
-| `studio` | `light` o `dark` |
-| `style`, `outline` | resa `3d` / `flat` / `toon` / `outline` e spessore del contorno in px (vedi [Resa 2D](#resa-2d)) |
-| `label` | testo mostrato accanto al pallino colorato in alto a sinistra |
-
-Se `spell`, `sequence`, `shape` e `capability` sono presenti insieme, vale il primo in quest'ordine. I parametri di uno stato sono sovrapposizioni ai valori base: lo stato successivo (o `state(null)`) li annulla, e il salvataggio nel browser conserva sempre i valori base.
-
-```js
-sigmaBrain.state('searching');
-sigmaBrain.define('celebrating', { spell: 'WOW', color: '#ffd400', iridescence: 0.6, label: 'Evviva' });
-sigmaBrain.defineStates({ ... });          // più stati in una volta
-await sigmaBrain.loadStates('/states.json'); // da un file JSON
-sigmaBrain.state(null);                      // annulla lo stato attivo
-sigmaBrain.currentState;                     // 'searching' | null
-sigmaBrain.states;                           // copia del vocabolario
-```
-
-## Configurazione: prova, salva, esporta
-
-Il flusso di lavoro pensato per chi integra: si regola tutto dall'interfaccia, si salva ogni combinazione come stato, si esporta un JSON e lo si dà alla pagina che renderizza.
-
-1. Regola forma, colore e parametri dal pannello.
-2. In **Parametri → Configurazione** scrivi un nome (per esempio `searching`) e premi **Salva stato**: la situazione corrente (forma o sequenza in corso, colore, tutti i parametri) diventa una definizione di stato.
-3. Ripeti per ogni stato. **Elimina stato attivo** toglie quello selezionato.
-4. **Esporta JSON** scarica `sigma-brain.config.json`; **Copia JSON** lo mette negli appunti; **Importa…** ricarica un file esportato.
-
-Il JSON contiene `settings` (i valori base di tutti i parametri), `capability` e `shape` correnti, lo `state` attivo e `states` (il vocabolario). Per caricarlo nella pagina:
-
-```js
-sigmaBrain.importConfig(json);                 // oggetto o URL di un file JSON
-sigmaBrain.exportConfig();                     // → oggetto
-sigmaBrain.saveState('searching');             // come il pulsante Salva stato
-sigmaBrain.removeState('searching');
-```
-
-```
-index.html?config=sigma-brain.config.json      // all'apertura
-```
-
-```js
-// da una pagina che la incorpora
-w.postMessage({ type: 'sigmabrain:config', config: json }, '*');
-w.postMessage({ type: 'sigmabrain:export' }, '*');   // risponde con { type: 'sigmabrain:config', config }
-w.postMessage({ type: 'sigmabrain:ui', visible: false }, '*');  // nasconde o mostra i comandi
-w.postMessage({ type: 'sigmabrain:style', style: 'flat' }, '*');   // resa 3d | flat | toon | outline
-```
-
-Le forme da file immagine finiscono nell'export come data URI (fino a 400 KB); SVG e path come testo.
-
-## Colore
-
-Sorgente della tinta, nel pannello **Parametri → Colore**:
-
-| Sorgente | Comportamento |
-|---|---|
-| Nero | materiale nero con riflessi bianchi (il riferimento originale) |
-| Capability | un colore per stato (tabella sopra); è il default |
-| Audio | la tonalità segue il baricentro spettrale (gravi → rosso, medi → giallo/verde, acuti → blu/viola) e l'intensità sale col volume |
-| Fisso | il colore scelto nel selettore o passato via API |
-
-**Intensità** regola quanto la tinta entra nel corpo e nei riflessi. **Iridescenza** aggiunge una pellicola sottile che cambia colore con l'angolo di vista; funziona anche in modalità Nero. Il pallino accanto al nome dello stato, in alto a sinistra, mostra il colore corrente.
-
-## Resa 2D
-
-La stessa forma e la stessa animazione si possono dipingere in modo piatto, per interfacce dove un oggetto lucido in 3D non c'entra (un avatar in una chat, un'icona grande, una grafica da stampa). Si sceglie in **Parametri → Studio → Resa**, con `?style=` nell'URL, con `sigmaBrain.setStyle()` o con la chiave `style` di uno stato.
-
-| Resa | id | Aspetto |
-|---|---|---|
-| 3D | `3d` | il ferrofluido lucido con riflessi (default) |
-| Piatto | `flat` | riempimento uniforme con bordo anti-aliasato: nero su fondale chiaro, bianco su scuro, oppure la tinta scelta |
-| Due toni | `toon` | come Piatto più un lato luce con transizione netta, stile illustrazione; l'iridescenza diventa una tinta che segue la normale |
-| Contorno | `outline` | solo il tratto attorno alla silhouette |
-
-**Contorno** (0–12 px) aggiunge un tratto anche a Piatto e Due toni; nella resa Contorno vale almeno 2 px. Il tratto è disegnato all'esterno della silhouette. Colore, Capability, Forma esterna, sequenze, punte e tutti gli altri parametri funzionano uguali: una forma esterna in resa Piatto è di fatto un'icona animata dal suono.
-
-```js
-sigmaBrain.setStyle('flat');       // '3d' | 'flat' | 'toon' | 'outline'
-sigmaBrain.style;                  // resa corrente
-sigmaBrain.define('badge', { capability: 'brain', style: 'toon', outline: 3, color: '#2f7cff' });
-```
-
-```
-index.html?style=flat&ui=off#idle
-```
-
-## Parametri
-
-Pannello **Parametri** (tasto `P`). Tutte le impostazioni restano salvate nel browser; **Ripristina valori** riporta ai default.
-
-**Massa**
-- *Dimensione* (50–180%): sincronizzata con rotella e pizzico.
-- *Sensibilità* (0,2–3×): guadagno sul livello normalizzato.
-- *Deformazione*: quanto i lobi si allontanano dal nucleo nello stato Cervello.
-- *Viscosità*: velocità di attacco e rilascio; più alta, più il liquido reagisce e si calma lentamente.
-- *Rotazione automatica*: velocità di rotazione dello stato Cervello.
-
-**Instabilità di Rosensweig**
-Sopra una soglia critica Bc la superficie di un ferrofluido reale si rompe in punte; qui il "campo" è il livello audio. *Punte magnetiche* è a zero di default (massa liscia); alzalo e regola *Soglia critica Bc*, *Numero di punte* e *Base delle punte*. Le punte sono disposte su un reticolo di Fibonacci sferico e ciascuna risponde a una banda dello spettro.
-
-**Colore**: vedi sopra.
-
-**Studio** - resa (3D, Piatto, Due toni, Contorno: vedi [Resa 2D](#resa-2d)) e contorno in pixel per le rese 2D; fondale chiaro o scuro; qualità di rendering (in *Auto* la risoluzione si adatta per tenere 60 fps).
-
-## Comandi
-
-| Tasto / gesto | Azione |
-|---|---|
-| trascina | ruota la massa |
-| rotella / pizzico | dimensione |
-| doppio clic | riporta vista e dimensione ai default |
-| `1`–`7` | capability (7 = forma esterna) |
-| `A` | sequenza automatica delle capability |
-| `M` / `D` | microfono / demo |
-| `Spazio` | pausa e riproduzione del file audio |
-| `P` | pannello parametri |
-| `H` | nasconde o mostra i comandi |
-| `F` | schermo intero |
-
-## API JavaScript
-
-La pagina espone `window.sigmaBrain` (alias `window.ferrofluido`, mantenuto per compatibilità).
-
-| Membro | Tipo | Descrizione |
+| Member | Returns | Description |
 |---|---|---|
 | `capabilities` | `string[]` | `['brain','chat','web','docs','images','tools','custom']` |
-| `capability` | `string` (sola lettura) | stato corrente |
-| `progress` | `number` (sola lettura) | avanzamento della transizione di forma, 0..1 (1 = ferma) |
-| `setCapability(id)` | `→ boolean` | cambia stato; `false` se l'id non esiste o è già attivo. Spegne Auto |
-| `auto(on)` | | attiva o spegne la sequenza automatica |
+| `capability` | `string` | current shape (read-only) |
+| `progress` | `number` | morph progress, 0–1; 1 when idle (read-only) |
+| `setCapability(id)` | `boolean` | switch shape; `false` if unknown or already active; stops Auto |
+| `auto(on)` | | start or stop cycling through capabilities |
 | `colorModes` | `string[]` | `['none','capability','audio','fixed']` |
-| `colorMode` | `string` (sola lettura) | sorgente del colore corrente |
-| `setColorMode(mode)` | `→ boolean` | cambia sorgente del colore |
-| `setColor('#rrggbb')` | `→ boolean` | imposta un colore fisso e passa alla sorgente `fixed` |
-| `setCapabilityColor(id, '#rrggbb')` | `→ boolean` | cambia il colore associato a uno stato (sorgente `capability`) |
-| `setShape(source, options?)` | `→ Promise<boolean>` | carica una forma esterna e (di default) passa allo stato `custom`. `source`: stringa (emoji/testo, path `M…`, markup `<svg…>`, URL o data URI di immagine) oppure oggetto `{ text }`, `{ path, viewBox?, fillRule? }`, `{ svg }`, `{ image: url \| File \| Blob \| HTMLImageElement, invert? }`, tutti con `name?`. `options`: `{ thickness?: 0.06–0.5, rounding?: 0–1, activate?: boolean, instant?: boolean, silent?: boolean }` |
-| `clearShape()` | `→ boolean` | torna allo stato `brain` |
-| `shapeName` | `string \| null` (sola lettura) | nome della forma esterna caricata |
-| `playSequence(items, options?)` | `→ boolean` | alterna una lista di sorgenti (array, o stringa separata da virgole). `options`: `{ interval?: secondi (default 1,8), loop?: boolean (default true), shape?: opzioni di setShape }` |
-| `spell(word, options?)` | `→ boolean` | scrive una parola lettera per lettera, poi la parola intera. `options`: `{ interval?: secondi (default 1,5), whole?: boolean (default true), loop?: boolean (default false), shape? }` |
-| `stopSequence()` | | ferma la sequenza in corso |
-| `sequence` | `object \| null` (sola lettura) | `{ index, length, loop, interval }` della sequenza in corso |
-| `state(name \| null)` | `→ boolean` | applica uno stato del vocabolario, o annulla quello attivo |
-| `define(name, def)`, `defineStates(obj)`, `loadStates(url \| obj)` | | definisce stati (vedi [Vocabolario di stati](#vocabolario-di-stati)) |
-| `removeState(name)`, `saveState(name)` | `→ boolean` | elimina uno stato; salva la situazione corrente come stato |
-| `states`, `currentState` | (sola lettura) | copia del vocabolario; nome dello stato attivo o `null` |
-| `ui(visible)` | | mostra o nasconde i comandi (come il tasto `H`); `?ui=off` nell'URL li nasconde all'apertura |
-| `setStyle(id)`, `style`, `styles` | | resa `3d`, `flat`, `toon`, `outline` (vedi [Resa 2D](#resa-2d)); `?style=` nell'URL |
-| `exportConfig()`, `importConfig(obj \| url)` | | esporta e importa la configurazione completa (vedi [Configurazione](#configurazione-prova-salva-esporta)) |
+| `colorMode` | `string` | current color source (read-only) |
+| `setColorMode(mode)` | `boolean` | change the color source |
+| `setColor('#rrggbb')` | `boolean` | fixed color; switches to `fixed` |
+| `setCapabilityColor(id, '#rrggbb')` | `boolean` | color used for a shape in `capability` mode |
+| `setShape(source, options?)` | `Promise<boolean>` | load a custom shape and (by default) show it. `source`: a string (emoji/text, `M…` path, `<svg…>` markup, image URL or data URI) or an object `{ text }`, `{ path, viewBox?, fillRule? }`, `{ svg }`, `{ image: url \| File \| Blob \| HTMLImageElement, invert? }`, each with optional `name`. `options`: `{ thickness?, rounding?, activate?, instant?, silent? }` |
+| `clearShape()` | `boolean` | back to `brain` |
+| `shapeName` | `string \| null` | name of the loaded custom shape (read-only) |
+| `playSequence(items, options?)` | `boolean` | loop a list of sources or capability ids (array or comma-separated string). `options`: `{ interval? = 1.8 s, loop? = true, shape? }` |
+| `spell(word, options?)` | `boolean` | spell a word letter by letter, then the whole word. `options`: `{ interval? = 1.5 s, whole? = true, loop? = false, shape? }` |
+| `stopSequence()` | | stop the running sequence |
+| `sequence` | `object \| null` | `{ index, length, loop, interval }` of the running sequence (read-only) |
+| `state(name \| null)` | `boolean` | apply a state, or leave the active one |
+| `define(name, definition)` | `boolean` | add or replace a state |
+| `defineStates(states)` | `boolean` | add or replace several states |
+| `loadStates(url \| object)` | `Promise<boolean>` | load states from JSON |
+| `removeState(name)` | `boolean` | delete a state |
+| `saveState(name)` | `boolean` | save the current situation as a state (like the *Salva stato* button) |
+| `states` | `object` | copy of the vocabulary (read-only) |
+| `currentState` | `string \| null` | active state (read-only) |
+| `exportConfig()` | `object` | full configuration, see [format](#configuration-tune-save-export) |
+| `importConfig(object \| url)` | `Promise<boolean>` | load a configuration; `false` if it is not one |
+| `ui(visible)` | | show or hide all controls |
+| `styles` | `string[]` | `['3d','flat','toon','outline']` |
+| `style` | `string` | current render style (read-only) |
+| `setStyle(id)` | `boolean` | change the render style |
 
-Esempi:
+`window.ferrofluido` is an alias of `window.sigmaBrain`.
 
 ```js
-sigmaBrain.setShape('🚀');                                 // emoji
-sigmaBrain.setShape('M12 2L2 22h20Z');                     // path SVG
-sigmaBrain.setShape({ svg: svgMarkup, name: 'logo' });    // SVG completo
-sigmaBrain.setShape({ image: '/icons/bolt.png' }, { thickness: 0.3 });
-sigmaBrain.setShape(fileInput.files[0]);                   // File da un <input type="file">
-sigmaBrain.setShape('★', { activate: false });             // precarica senza cambiare stato
-
-sigmaBrain.setCapability('web');          // il fluido diventa un pianeta
-sigmaBrain.setColor('#ff0066');           // tinta fissa magenta
-sigmaBrain.setColorMode('audio');         // il colore segue il suono
-sigmaBrain.setCapabilityColor('chat', '#ff2d95');
-sigmaBrain.auto(true);
-
-// attendere la fine di una transizione
-const waitIdle = () => new Promise((ok) => {
+// wait for a morph to finish
+const morphDone = () => new Promise((ok) => {
   const tick = () => (sigmaBrain.progress >= 1 ? ok() : requestAnimationFrame(tick));
   tick();
 });
 ```
 
-**Stato iniziale dall'URL**: `index.html#chat` apre direttamente in quello stato (nessuna transizione).
+### `postMessage`
 
-**Da una pagina che la incorpora in un `<iframe>`** (funziona anche cross-origin):
+Send these to the iframe's `contentWindow`. They work cross-origin.
 
-```js
-const w = iframe.contentWindow;
-w.postMessage({ type: 'sigmabrain:capability', name: 'docs' }, '*');
-w.postMessage({ type: 'sigmabrain:color', color: '#ff0066' }, '*');
-w.postMessage({ type: 'sigmabrain:colorMode', mode: 'audio' }, '*');
-w.postMessage({ type: 'sigmabrain:shape', source: '🚀', options: { thickness: 0.3 } }, '*');
-w.postMessage({ type: 'sigmabrain:shape', source: { svg: svgMarkup, name: 'logo' } }, '*');
-w.postMessage({ type: 'sigmabrain:spell', word: 'SIGMA', options: { interval: 1.2 } }, '*');
-w.postMessage({ type: 'sigmabrain:sequence', items: ['🔍', '📄', '💬'], options: { interval: 2 } }, '*');
-w.postMessage({ type: 'sigmabrain:stop' }, '*');
-w.postMessage({ type: 'sigmabrain:state', name: 'searching' }, '*');
-w.postMessage({ type: 'sigmabrain:define', name: 'celebrating', definition: { spell: 'WOW' } }, '*');
-w.postMessage({ type: 'sigmabrain:define', states: { ... } }, '*');
+| `type` | Fields | Equivalent |
+|---|---|---|
+| `sigmabrain:state` | `name` (string or `null`) | `state(name)` |
+| `sigmabrain:capability` | `name` | `setCapability(name)` |
+| `sigmabrain:shape` | `source`, `options?` | `setShape(source, options)` |
+| `sigmabrain:spell` | `word`, `options?` | `spell(word, options)` |
+| `sigmabrain:sequence` | `items`, `options?` | `playSequence(items, options)` |
+| `sigmabrain:stop` | | stop sequence and Auto |
+| `sigmabrain:color` | `color` | `setColor(color)` |
+| `sigmabrain:colorMode` | `mode` | `setColorMode(mode)` |
+| `sigmabrain:style` | `style` | `setStyle(style)` |
+| `sigmabrain:ui` | `visible` | `ui(visible)` |
+| `sigmabrain:define` | `name` + `definition`, or `states` | `define()` / `defineStates()` |
+| `sigmabrain:config` | `config` (object or URL) | `importConfig(config)` |
+| `sigmabrain:export` | | replies `{ type: 'sigmabrain:config', config }` to the sender |
+
+Message payloads must be serializable: pass a `File` or `Blob` to `setShape` from the same page instead.
+
+## How it works
+
+- **Rendering**: a single full-screen fragment shader ray-marches a signed distance field (up to 160 steps, with a bounding sphere to skip empty space). The brain shape is a core plus six orbiting lobes driven by the frequency bands, joined with a smooth minimum, with two subtracted spheres for the folds, slow noise and fast treble ripples on the surface.
+- **Capabilities**: each shape is an SDF built from classic primitives (spheres, rounded cones and boxes, polar repetition for the gear teeth, extruded triangles for the mountains). Morphing linearly interpolates the two fields, which stays safe to ray-march; a burst of noise halfway gives the melt-and-reform effect.
+- **Custom shapes**: the silhouette is drawn on a canvas, cropped and centered; an exact Euclidean distance transform runs inside and outside at 768×768, with sub-pixel edge distances taken from anti-aliased coverage; the field is downsampled to 384×384, smoothed with a ~2-texel Gaussian (which removes texel stair-stepping and keeps the field 1-Lipschitz) and uploaded as a two-channel half-float texture (signed distance, relative darkness). The shader extrudes it with rounded edges and carves the front face where the image is dark. Two textures alternate, so morphing between two custom shapes is smooth too.
+- **Spikes**: cones on a spherical Fibonacci lattice, located in closed form, so the cost does not grow with the spike count.
+- **Material**: near-black body with Fresnel reflections of an analytic studio environment (softboxes, a strip light, two point lights), 5-sample ambient occlusion and analytic edge anti-aliasing. 2D styles reuse the same field with flat or banded shading.
+- **Audio**: `AnalyserNode` with a 2048-sample FFT; 32 logarithmic bands from 30 Hz to 14 kHz; RMS with adaptive noise floor and automatic gain; separate attack and release envelopes (the viscosity); spectral centroid for the Audio color mode.
+- **Interface**: vanilla HTML, CSS and JavaScript; color tokens for the light and dark studio; responsive down to 390 px; settings in `localStorage`.
+
+To add a built-in shape: write an `sdName(vec3 p)` function in the shader, add a case to `shapeD()`, add an entry to `CAPS` (with `ext`, the shape's maximum extent, used for the bounding sphere) and an icon to `ICONS`.
+
+## Browser support and performance
+
+- Requires **WebGL2**: current Chrome, Edge, Firefox and Safari 15+. Without it the page shows a notice.
+- In *Auto* quality the render buffer scales between 40% and 100% of the device pixel ratio (capped at 1.5×) based on frame time; *High* renders at up to 2×.
+- Animation time is capped at 0.1 s per frame, so on very slow machines morphs slow down instead of skipping.
+- Custom shapes cost a little more than the built-in ones (one texture lookup per ray-marching step).
+- Touch: drag to rotate, pinch to resize; the capability rail scrolls horizontally on phones.
+- Honors `prefers-reduced-motion`: no auto-rotation, slower fluid, no UI animations.
+
+## Troubleshooting
+
+| Symptom | Cause and fix |
+|---|---|
+| The microphone does not start | Serve over `https://` or `localhost`; inside an iframe add `allow="microphone"`; sandboxed previews block it, so open `index.html` directly |
+| "Il browser blocca la lettura di questa immagine (CORS)" | The image comes from another domain without CORS headers: download it and load it as a file, or use a data URI |
+| An emoji is an unrecognizable disc | Its silhouette is a disc: raise *Engraving*, or pick a glyph with a distinctive outline (★ ⚡ 🚀 🔍 📄) |
+| Choppy animation | Set quality to *Auto*, *Medium* or *Low* |
+| "WEBGL2 NON DISPONIBILE" (WebGL2 not available) | Update the browser or enable hardware acceleration |
+| `postMessage` does nothing | Sent before the iframe's `load` event, or a misspelled `type` (see the [message table](#postmessage)) |
+| Settings change on their own | The browser remembers the last settings: use *Ripristina valori* (Reset values), or always pass a `?config=` |
+
+## Project structure
+
+```text
+.
+├── index.html              # the whole app: styles, GLSL shader, audio, UI, API
+├── examples/
+│   └── integration.html    # host page: iframe + postMessage
+├── docs/
+│   ├── demo.gif            # README animation
+│   └── screenshots/        # README images
+├── LICENSE                 # Apache License 2.0
+├── NOTICE
+└── README.md
 ```
 
-Per `postMessage` la sorgente deve essere serializzabile: testo, path, markup SVG, URL o data URI; un `File` o `Blob` va passato direttamente a `setShape` dalla stessa pagina.
+There is no build step and no package manager: edit `index.html` and reload.
 
-## Come funziona
+## Contributing
 
-- **Forma**: tutto è un campo di distanza con segno (SDF) valutato per pixel in un fragment shader (ray marching, 160 passi max, bounding sphere per saltare il vuoto). Lo stato Cervello è un nucleo più sei lobi che orbitano guidati dalle bande di frequenza, uniti con *smooth minimum*, due sfere sottratte che creano le pieghe, un rumore lento e increspature veloci (acuti) sulla superficie.
-- **Capability**: ogni forma è un SDF scritto con primitive classiche (sfere, coni arrotondati, box arrotondati, ripetizione polare per i denti dell'ingranaggio, triangoli estrusi per le montagne). Il passaggio da una forma all'altra è un'interpolazione lineare tra i due campi, che il ray marching attraversa senza problemi perché resta 1-Lipschitz; un picco di rumore a metà transizione dà l'effetto "si scioglie e si ricompone".
-- **Forma esterna**: silhouette → copertura anti-aliasata 384×384 → trasformata di distanza esatta, con la distanza sul bordo ricavata dalla copertura → texture R16F letta con `textureLod` nello shader ed estrusa con bordi arrotondati (somma di Minkowski tra la forma ristretta e una sfera). Fuori dal quadrato della texture il campo continua con la distanza dal quadrato, così il ray marching resta corretto.
-- **Punte**: coni su un reticolo di Fibonacci sferico, valutato in forma chiusa (inverse mapping di Keinert et al.), quindi il costo non cresce con il numero di punte.
-- **Materiale**: superficie quasi nera con riflessi di Fresnel di un ambiente da studio calcolato analiticamente (tre softbox, una striscia, due punti luce, un pannello frontale), occlusione ambientale a 5 campioni, bordo anti-aliasato per copertura stimata del pixel. La tinta entra nel colore del corpo, in un bordo colorato verso la silhouette e, in parte, nei riflessi; l'iridescenza è una pellicola sottile il cui colore dipende dall'angolo di vista.
-- **Audio**: `AnalyserNode` a 2048 campioni; 32 bande logaritmiche da 30 Hz a 14 kHz; RMS con pavimento di rumore adattivo e guadagno automatico; inviluppi con attacco e rilascio separati (la viscosità); baricentro spettrale per la tonalità in modalità Audio.
-- **Interfaccia**: HTML/CSS vanilla, token di colore per lo studio chiaro e scuro, layout adattivo fino a 390 px di larghezza, impostazioni in `localStorage`.
+Issues and pull requests are welcome.
 
-Per aggiungere una forma: una funzione `sdNome(vec3 p)` nello shader, un caso in `shapeD()`, una riga in `CAPS` (con `ext`, l'estensione massima della forma, usata per la bounding sphere) e un'icona in `ICONS`.
+- Keep it dependency-free and contained in `index.html`; new examples go in `examples/`.
+- Test in at least one Chromium-based browser and Firefox (and Safari if you can), with both light and dark backdrops and on a phone-sized viewport.
+- New built-in shapes: follow the steps at the end of [How it works](#how-it-works) and add a screenshot.
+- Describe visual changes with a screenshot or short clip in the pull request.
 
-## Prestazioni e compatibilità
+## License
 
-- Richiede WebGL2 (Chrome, Edge, Firefox, Safari 15+). Senza WebGL2 la pagina mostra un avviso.
-- In qualità *Auto* il buffer di rendering si adatta tra il 40% e il 100% del device pixel ratio (max 1,5×) per restare sotto i 18 ms per frame; *Alta* forza fino a 2×.
-- Il tempo dell'animazione è limitato a 0,1 s per frame: sotto i 10 fps le transizioni e il cambio colore rallentano invece di scattare.
-- Su schermi touch: trascina per ruotare, pizzica per la dimensione; la barra delle capability scorre in orizzontale.
-- Rispetta `prefers-reduced-motion` (rotazione automatica spenta, animazioni dell'interfaccia disattivate).
+Copyright 2026 Giovanni Fagherazzi.
 
-## Struttura del progetto
+Licensed under the [Apache License, Version 2.0](LICENSE). See [NOTICE](NOTICE).
 
-```
-sigma-brain/
-├── index.html   # tutto: stili, shader GLSL, logica audio e interfaccia
-├── README.md
-├── docs/        # screenshot usati in questo README
-└── examples/
-    └── integrazione.html   # pagina ospite di esempio: iframe + postMessage
-```
+## Acknowledgements
+
+- Signed distance primitives and smooth minimum after [Inigo Quilez](https://iquilezles.org/articles/distfunctions/).
+- Spherical Fibonacci lattice lookup: B. Keinert et al., *Spherical Fibonacci Mapping*, ACM TOG 2015.
+- Distance transform: P. Felzenszwalb and D. Huttenlocher, *Distance Transforms of Sampled Functions*, Theory of Computing 2012.
+- The spikes mimic the Rosensweig (normal-field) instability of real ferrofluids.
+- Fonts: [Michroma](https://fonts.google.com/specimen/Michroma), [Instrument Sans](https://fonts.google.com/specimen/Instrument+Sans) and [IBM Plex Mono](https://fonts.google.com/specimen/IBM+Plex+Mono), served by Google Fonts.

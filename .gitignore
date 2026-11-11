@@ -1,0 +1,12 @@
+# OS and editor files
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+
+# Local tooling, if any is added later
+node_modules/
+
+# Configurations exported from the page while experimenting
+sigma-brain.config*.json

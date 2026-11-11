@@ -1,10 +1,11 @@
 <!doctype html>
+<!-- Sigma Brain · https://github.com/gfagherazzi/ferrofluid · SPDX-License-Identifier: Apache-2.0 -->
 <html lang="it">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Sigma Brain</title>
-<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='13' fill='%23121214'/%3E%3Cellipse cx='11.5' cy='10.5' rx='4' ry='2.2' fill='%23ffffff' opacity='.55'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Michroma&family=Instrument+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
@@ -1028,14 +1029,14 @@ void main() {
   const CAP_COLORS = { brain: '#8d97a8', chat: '#ff3b5c', web: '#2f7cff', docs: '#f2a93b', images: '#2fd3a6', tools: '#ff7a1a', custom: '#8b5cf6' };
   const STORE_KEY = 'sigmabrain.v1';
   const S = { ...DEFAULTS };
-  try { Object.assign(S, JSON.parse(localStorage.getItem(STORE_KEY) || '{}')); } catch (e) { /* storage non disponibile */ }
+  try { Object.assign(S, JSON.parse(localStorage.getItem(STORE_KEY) || '{}')); } catch { /* storage non disponibile */ }
   let saveTimer = 0;
   // scrive un valore base: se uno stato lo stava sovrapponendo, la scelta esplicita vince
   const setBase = (k, v) => { S[k] = v; delete stateBackup[k]; };
   const save = () => {
     clearTimeout(saveTimer);
     // si salvano i valori base, non le sovrapposizioni di uno stato del vocabolario
-    saveTimer = setTimeout(() => { try { localStorage.setItem(STORE_KEY, JSON.stringify({ ...S, ...stateBackup })); } catch (e) { /* ignora */ } }, 300);
+    saveTimer = setTimeout(() => { try { localStorage.setItem(STORE_KEY, JSON.stringify({ ...S, ...stateBackup })); } catch { /* ignora */ } }, 300);
   };
 
   const pct = (v) => Math.round(v * 100) + '%';
@@ -1130,7 +1131,7 @@ void main() {
     try {
       if (document.fullscreenElement) document.exitFullscreen();
       else document.documentElement.requestFullscreen().catch(() => setStatus('Lo schermo intero non è disponibile in questa finestra.', true));
-    } catch (e) { setStatus('Lo schermo intero non è disponibile in questa finestra.', true); }
+    } catch { setStatus('Lo schermo intero non è disponibile in questa finestra.', true); }
   };
   $('btn-full').onclick = toggleFull;
 
@@ -1266,8 +1267,8 @@ void main() {
     if (actx.state === 'suspended') actx.resume();
   }
   function detach() {
-    if (srcNode) { try { srcNode.disconnect(); } catch (e) { /* già scollegato */ } srcNode = null; }
-    if (analyser) { try { analyser.disconnect(); } catch (e) { /* già scollegato */ } }
+    if (srcNode) { try { srcNode.disconnect(); } catch { /* già scollegato */ } srcNode = null; }
+    if (analyser) { try { analyser.disconnect(); } catch { /* già scollegato */ } }
     if (stream) { stream.getTracks().forEach((t) => t.stop()); stream = null; }
     if (audioEl) audioEl.pause();
     $('btn-play').hidden = true;
@@ -1301,7 +1302,7 @@ void main() {
       srcNode.connect(analyser);
       setMode('mic');
       setStatus('Microfono attivo. Parla, canta o fai partire della musica vicino al computer.', false, 4500);
-      try { navigator.wakeLock && navigator.wakeLock.request('screen').catch(() => {}); } catch (e) { /* opzionale */ }
+      try { navigator.wakeLock && navigator.wakeLock.request('screen').catch(() => {}); } catch { /* opzionale */ }
     } catch (e) {
       const name = e && e.name;
       if (name === 'NotFoundError' || name === 'OverconstrainedError') setStatus('Nessun microfono trovato. Collegane uno o carica un file audio.', true, 9000);
@@ -1316,7 +1317,7 @@ void main() {
       setStatus('Questo file non sembra audio. Usa mp3, wav, ogg, m4a o flac.', true);
       return;
     }
-    try { ensureAudio(); } catch (e) { setStatus('Web Audio non è supportato da questo browser.', true); return; }
+    try { ensureAudio(); } catch { setStatus('Web Audio non è supportato da questo browser.', true); return; }
     detach();
     if (!audioEl) {
       audioEl = new Audio();
@@ -1538,7 +1539,7 @@ void main() {
   let activeState = null;    // stato del vocabolario attivo (vedi sotto)
   const stateBackup = {};    // valori base sovrascritti dallo stato attivo
   let STATES = {};           // vocabolario di stati, dal blocco JSON nella pagina
-  try { STATES = JSON.parse($('states-json').textContent) || {}; } catch (e) { STATES = {}; }
+  try { STATES = JSON.parse($('states-json').textContent) || {}; } catch { STATES = {}; }
 
   function paintCaps() {
     for (const c of CAPS) $('cap-' + c.id).setAttribute('aria-pressed', c === CAPS[capNow]);
@@ -1648,7 +1649,7 @@ void main() {
   // SHAPE_N: lato della texture; HI: risoluzione a cui si calcola il campo (2×), poi ridotta con media
   const SHAPE_N = 384, HI = 768, SHAPE_HALF = 1.1, SHAPE_FIT = 0.84, TEMP = 1024;
   const shapeTex = [null, null], shapeData = [null, null], shapeInfo = [{ maxInside: 0.2, hasDark: false }, { maxInside: 0.2, hasDark: false }];
-  let shapeSlot = 0;
+  let shapeSlot = 0, shapeGen = 0;
 
   // texture RG16F (distanza, scurezza): filtrabile in WebGL2 senza estensioni, precisione ~0.0003
   function initShapeTextures() {
@@ -1755,20 +1756,20 @@ void main() {
   }
 
   // copertura 0..1 di un pixel: alpha, oppure luminanza con soglia morbida per immagini opache
-  const coverage = (px, i, mode, invert) => {
+  const coverage = (px, i, srcMode, invert) => {
     const a = px[i + 3] / 255;
     let c = a;
-    if (mode !== 'alpha') c = a * clamp((160 - (0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2])) / 64, 0, 1);
+    if (srcMode !== 'alpha') c = a * clamp((160 - (0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2])) / 64, 0, 1);
     return invert ? a - c : c;
   };
-  const insidePx = (px, i, mode, invert) => coverage(px, i, mode, invert) >= 0.5;
+  const insidePx = (px, i, srcMode, invert) => coverage(px, i, srcMode, invert) >= 0.5;
   // ritaglia la silhouette, la centra nel quadrato della texture e produce la maschera binaria
-  function fitAndMask(temp, mode, invert) {
+  function fitAndMask(temp, srcMode, invert) {
     const T = temp.width;
     const img = temp.getContext('2d').getImageData(0, 0, T, T).data;
     let x0 = T, y0 = T, x1 = -1, y1 = -1;
     for (let y = 0; y < T; y++) for (let x = 0; x < T; x++) {
-      if (!insidePx(img, (y * T + x) * 4, mode, invert)) continue;
+      if (!insidePx(img, (y * T + x) * 4, srcMode, invert)) continue;
       if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
     }
     if (x1 < 0) return null;
@@ -1784,7 +1785,7 @@ void main() {
     const cov = new Float32Array(n * n), lum = new Float32Array(n * n);
     let sumL = 0, cnt = 0;
     for (let i = 0; i < n * n; i++) {
-      cov[i] = coverage(px, i * 4, mode, invert);
+      cov[i] = coverage(px, i * 4, srcMode, invert);
       lum[i] = (0.299 * px[i * 4] + 0.587 * px[i * 4 + 1] + 0.114 * px[i * 4 + 2]) / 255;
       if (cov[i] >= 0.5) { sumL += lum[i]; cnt++; }
     }
@@ -1836,13 +1837,13 @@ void main() {
   // immagine opaca → silhouette per luminanza; con trasparenza → per alpha
   function detectMode(temp) {
     const px = temp.getContext('2d').getImageData(0, 0, TEMP, TEMP).data;
-    let soft = 0, dark = 0, light = 0;
+    let soft = 0, light = 0;
     for (let i = 3; i < px.length; i += 4 * 7) {
       const a = px[i];
       if (a === 0) continue;
       if (a < 250) soft++;
       const lum = 0.299 * px[i - 3] + 0.587 * px[i - 2] + 0.114 * px[i - 1];
-      if (lum < 128) dark++; else light++;
+      if (lum >= 128) light++;
     }
     return soft > 50 || light === 0 ? 'alpha' : 'lum';
   }
@@ -1935,11 +1936,13 @@ void main() {
     if (typeof opts.thickness === 'number') setParam('shapeThick', opts.thickness);
     if (typeof opts.rounding === 'number') setParam('shapeRound', opts.rounding);
     const keep = persistable(source);
+    const gen = ++shapeGen;
     if (keep) { S.shapeSrc = keep; save(); }
     else if (source && source.image instanceof Blob && source.image.size < 400000) {
-      // immagine da file: la si conserva come data URI così entra nell'export e si ricarica all'apertura
+      // immagine da file: la si conserva come data URI così entra nell'export e si ricarica all'apertura;
+      // se nel frattempo è arrivata un'altra forma, la lettura viene scartata
       const fr = new FileReader();
-      fr.onload = () => { S.shapeSrc = { image: fr.result, name, invert: source.invert }; save(); };
+      fr.onload = () => { if (gen !== shapeGen) return; S.shapeSrc = { image: fr.result, name, invert: source.invert }; save(); };
       fr.readAsDataURL(source.image);
     }
     const customIdx = CAPS.indexOf(CUSTOM);
@@ -2128,7 +2131,7 @@ void main() {
   function paintStates() {
     const box = $('state-chips');
     const names = Object.keys(STATES);
-    const want = names.join('\n');
+    const want = names.map((n) => n + '\t' + (STATES[n].label || '')).join('\n');
     if (box.dataset.names !== want) {
       box.dataset.names = want;
       box.innerHTML = '';
@@ -2377,7 +2380,7 @@ void main() {
     const coreR = 0.78 * (1 + 0.07 * A.bass);
     let extent = coreR;
     for (let i = 0; i < 2; i++) {
-      let x = Math.sin(T * 0.17 + i * 2.3), y = Math.sin(T * 0.13 + 1.1 + i * 1.7) * 0.7, z = Math.sin(T * 0.11 + 2.0 + i * 0.9);
+      const x = Math.sin(T * 0.17 + i * 2.3), y = Math.sin(T * 0.13 + 1.1 + i * 1.7) * 0.7, z = Math.sin(T * 0.11 + 2.0 + i * 0.9);
       const l = Math.hypot(x, y, z) || 1;
       // sfera larga e quasi tutta esterna: scava una piega ampia e poco profonda, non un cratere
       const r = 0.6 + 0.25 * amt * (0.5 + A.mid);

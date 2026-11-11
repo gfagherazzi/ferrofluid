@@ -1,11 +1,13 @@
 <!doctype html>
-<html lang="it">
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Sigma Brain · esempio di integrazione</title>
+<title>Sigma Brain · integration example</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='13' fill='%23121214'/%3E%3Cellipse cx='11.5' cy='10.5' rx='4' ry='2.2' fill='%23ffffff' opacity='.55'/%3E%3C/svg%3E">
 <style>
-  /* Pagina ospite minima: incorpora Sigma Brain in un iframe e lo pilota con postMessage */
+  /* Minimal host page: embeds Sigma Brain in an iframe and drives it with postMessage */
   :root { --ink: #121214; --ink-2: #55575c; --line: rgba(18,18,20,.12); --well: rgba(18,18,20,.06); --accent: #8b5cf6; }
   body { margin: 0; font: 14px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--ink); background: #fafaf8; }
   main { max-width: 1100px; margin: 0 auto; padding: 24px 16px 48px; display: grid; gap: 18px; }
@@ -24,66 +26,66 @@
 </head>
 <body>
 <main>
-  <h1>Sigma Brain · esempio di integrazione</h1>
-  <p>Questa pagina incorpora <code>index.html</code> in un iframe senza interfaccia (<code>?ui=off</code>) e lo pilota con <code>postMessage</code>. Il codice è in fondo al file: copialo nella tua app.</p>
+  <h1>Sigma Brain · integration example</h1>
+  <p>This page embeds <code>index.html</code> in an iframe without its controls (<code>?ui=off</code>) and drives it with <code>postMessage</code>. The script at the bottom of this file is meant to be copied into your app.</p>
 
-  <!-- allow="microphone" serve perché l'iframe possa chiedere il permesso del microfono -->
+  <!-- allow="microphone" lets the iframe ask for microphone permission -->
   <iframe id="brain" class="frame" src="../index.html?ui=off#idle" allow="microphone" title="Sigma Brain"></iframe>
 
   <section>
-    <h2>Stati dell'assistente</h2>
+    <h2>Assistant states</h2>
     <div class="row" id="states"></div>
   </section>
 
   <section>
-    <h2>Conversazione simulata</h2>
+    <h2>Simulated conversation</h2>
     <div class="row">
-      <button type="button" class="primary" id="simulate">Simula una conversazione</button>
-      <button type="button" id="ui-toggle" aria-pressed="false">Mostra i comandi del fluido</button>
-      <button type="button" id="export">Leggi la configurazione</button>
-      <button type="button" id="mic">Attiva il microfono</button>
+      <button type="button" class="primary" id="simulate">Simulate a conversation</button>
+      <button type="button" id="ui-toggle" aria-pressed="false">Show the fluid's controls</button>
+      <button type="button" id="export">Read the configuration</button>
+      <button type="button" id="mic">Use the microphone</button>
     </div>
   </section>
 
   <section>
-    <h2>Forme e colori diretti</h2>
+    <h2>Direct shapes and colors</h2>
     <div class="row">
       <button type="button" data-shape="🚀">🚀</button>
       <button type="button" data-shape="⚡">⚡</button>
       <button type="button" data-shape="★">★</button>
-      <button type="button" data-shape="M12 2L2 22h20Z">path (triangolo)</button>
-      <button type="button" data-spell="CIAO">scrivi CIAO</button>
-      <button type="button" data-color="#ff0066">colore #ff0066</button>
-      <button type="button" data-color-mode="audio">colore da audio</button>
-      <button type="button" data-color-mode="capability">colore per stato</button>
+      <button type="button" data-shape="M12 2L2 22h20Z">path (triangle)</button>
+      <button type="button" data-spell="HELLO">spell HELLO</button>
+      <button type="button" data-color="#ff0066">color #ff0066</button>
+      <button type="button" data-color-mode="audio">color from audio</button>
+      <button type="button" data-color-mode="capability">color per state</button>
     </div>
   </section>
 
   <section>
-    <h2>Messaggi inviati e ricevuti</h2>
-    <div class="log" id="log"></div>
+    <h2>Messages sent and received</h2>
+    <div class="log" id="log" aria-live="polite"></div>
   </section>
 </main>
 
 <script>
-  // ---- 1. riferimenti e invio dei messaggi ----
+  // ---- 1. iframe reference and message sending ----
   const frame = document.getElementById('brain');
   const ready = new Promise((ok) => frame.addEventListener('load', ok, { once: true }));
   const log = document.getElementById('log');
   const write = (dir, msg) => { log.textContent = `${dir} ${JSON.stringify(msg)}\n` + log.textContent; };
   async function send(msg) {
-    await ready;                                   // i messaggi prima del load andrebbero persi
-    frame.contentWindow.postMessage(msg, '*');     // in produzione: l'origine della pagina del fluido
+    await ready;                                   // messages sent before load would be lost
+    frame.contentWindow.postMessage(msg, '*');     // in production, use the fluid page's origin
     write('→', msg);
   }
 
-  // ---- 2. eventi dell'app → stati del fluido ----
-  // Nella tua app basta chiamare brain('web') quando l'assistente inizia a cercare, brain('reply') quando risponde, ecc.
+  // ---- 2. app events → fluid states ----
+  // In your app, call brain('web') when the assistant starts searching, brain('reply') when it answers, and so on.
   const MAP = { idle: 'idle', thinking: 'thinking', reply: 'answering', web: 'searching', files: 'reading',
                 vision: 'looking', code: 'coding', hello: 'greeting', error: 'error', done: 'done' };
   function brain(event) { return send({ type: 'sigmabrain:state', name: MAP[event] || 'idle' }); }
 
-  // ---- 3. pulsanti di prova ----
+  // ---- 3. demo buttons ----
   const STATES = ['idle', 'thinking', 'answering', 'searching', 'reading', 'looking', 'coding', 'greeting', 'error', 'done'];
   const box = document.getElementById('states');
   for (const s of STATES) {
@@ -100,22 +102,28 @@
   };
 
   let uiVisible = false;
-  document.getElementById('ui-toggle').onclick = (e) => {
-    uiVisible = !uiVisible;
-    e.currentTarget.setAttribute('aria-pressed', uiVisible);
-    e.currentTarget.textContent = uiVisible ? 'Nascondi i comandi del fluido' : 'Mostra i comandi del fluido';
-    send({ type: 'sigmabrain:ui', visible: uiVisible });
+  const uiToggle = document.getElementById('ui-toggle');
+  const setControls = (visible) => {
+    uiVisible = visible;
+    uiToggle.setAttribute('aria-pressed', visible);
+    uiToggle.textContent = visible ? "Hide the fluid's controls" : "Show the fluid's controls";
+    send({ type: 'sigmabrain:ui', visible });
   };
+  uiToggle.onclick = () => setControls(!uiVisible);
   document.getElementById('export').onclick = () => send({ type: 'sigmabrain:export' });
-  // il microfono va chiesto dall'interno dell'iframe: mostriamo i comandi e invitiamo a premere "Microfono"
-  document.getElementById('mic').onclick = () => { send({ type: 'sigmabrain:ui', visible: true }); alert('Premi "Microfono" nel pannello in basso del fluido (il permesso lo chiede il browser).'); };
+  // Microphone permission can only be requested from inside the iframe: show the controls
+  // and let the user press the microphone button ("Microfono") in the fluid's dock.
+  document.getElementById('mic').onclick = () => {
+    setControls(true);
+    write('ℹ', 'Press the microphone button in the fluid\'s dock; the browser will ask for permission.');
+  };
 
   for (const b of document.querySelectorAll('[data-shape]')) b.onclick = () => send({ type: 'sigmabrain:shape', source: b.dataset.shape });
   for (const b of document.querySelectorAll('[data-spell]')) b.onclick = () => send({ type: 'sigmabrain:spell', word: b.dataset.spell });
   for (const b of document.querySelectorAll('[data-color]')) b.onclick = () => send({ type: 'sigmabrain:color', color: b.dataset.color });
   for (const b of document.querySelectorAll('[data-color-mode]')) b.onclick = () => send({ type: 'sigmabrain:colorMode', mode: b.dataset.colorMode });
 
-  // ---- 4. risposte dal fluido (per ora solo l'export della configurazione) ----
+  // ---- 4. replies from the fluid (currently only the configuration export) ----
   window.addEventListener('message', (e) => {
     if (e.source !== frame.contentWindow) return;
     const d = e.data;
